@@ -6,12 +6,12 @@
 #include <utils/vec3.hpp>
 #include <.lib/enum/enum_reflect.hpp>
 
-#define CHUNK_X_SIZE 30
+#define CHUNK_X_SIZE 128
 #define CHUNK_Y_SIZE 1
-#define CHUNK_Z_SIZE 30
-#define MAX_CHUNK_X_SIZE 128
+#define CHUNK_Z_SIZE 128
+//#define MAX_CHUNK_X_SIZE 128
 #define MAX_CHUNK_Y_SIZE 128
-#define MAX_CHUNK_Z_SIZE 128
+//#define MAX_CHUNK_Z_SIZE 128
 
 /************* 
  * 
@@ -42,7 +42,7 @@ struct ChunkParams {
     // chunk type-specific
     float waveAmplitude = 4.0f;
     float waveFrequency = 0.5f;
-    float cheeseDensity = 0.3f;
+    float cheeseDensity = 0.15f;
     float caveThreshold = 0.2f;
 
     // material ids (0 = air)

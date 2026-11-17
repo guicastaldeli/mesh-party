@@ -72,6 +72,7 @@ Mesh& Terrain::getMesh() const {
 /**
  * Set
  */
+// Set
 void Terrain::set() {
     TextureResult tex = mesh.getTextureLoader()->load(TEX_PATH);
     texId = tex.texId;
@@ -84,14 +85,28 @@ void Terrain::set() {
     tint.seed = s;
 }
 
+// Set Boundary
+void Terrain::setBoundary(const ChunkData& chunkData) {
+    bool registered = false;
+    for(Collider* c : collision.getColliders()) {
+        if(c == &boundary) { registered = true; break; }
+    }
+    if(!registered) {
+        collision.addCollider(&boundary);
+    }
+    
+    float cx = origin.x + (chunkData.sx * 0.5f);
+    float cz = origin.z + (chunkData.sz * 0.5f);
+    
+    boundary.update({cx, 0.0f, cz}, boundaryRadius);
+}
+
 /**
  * 
- * Upload
+ * Generate
  * 
  */
-void Terrain::upload(const ChunkData& chunkData) {
-    lastChunk = &chunkData;
-
+void Terrain::generate(const ChunkParams& params) {
     IdGen::reset(ids);
     mesh.clearInstances(spawnedIds);
     spawnedIds.clear();
@@ -99,29 +114,49 @@ void Terrain::upload(const ChunkData& chunkData) {
 
     set();
 
-    for(int z = 0; z < chunkData.sz; ++z)
-    for(int y = 0; y < chunkData.sy; ++y)
-    for(int x = 0; x < chunkData.sx; ++x) {
-        if(chunkData.at(x, y, z) == 0) continue;
+    Heightmap h(params.sizeX, params.sizeZ);
 
-        const uint32_t id = static_cast<uint32_t>(IdGen::next(ids));
-        spawnedIds.push_back(id);
+    Mesh::Bounds bounds = mesh.getBounds(MESH_TYPE);
+    float height = bounds.max.y - bounds.min.y;
 
-        mesh.setPosition(id,
-                    origin.x + float(x),
-                    origin.y + float(y),
-                    origin.z + float(z));
-        mesh.load(id, MESH_TYPE);
-        mesh.setTexture(id, texId);
-        
-        Vec3 color = Tint::key(tint, id);
-        mesh.setColor(id, color.x, color.y, color.z);
-        
-        if(trackCollision) collision.set(id, CollisionType::STATIC_COLLIDER);
-    }
+    auto buildLayer = [&](ChunkType type, float yoffset) -> float {
+        ChunkParams p = params;
+        p.type = type;
+
+        ChunkData data = Chunk::generateChunk(p, h);
+
+        int maxY = 0;
+        for(int z = 0; z < data.sz; ++z)
+        for(int y = 0; y < data.sy; ++y)
+        for(int x = 0; x < data.sx; ++x) {
+            if(data.at(x, y, z) == 0) continue;
+
+            maxY = std::max(maxY, y);
+
+            const uint32_t id = static_cast<uint32_t>(IdGen::next(ids));
+            spawnedIds.push_back(id);
+
+            mesh.setPosition(id,
+                        origin.x + float(x),
+                        yoffset + float(y),
+                        origin.z + float(z));
+            mesh.load(id, MESH_TYPE);
+            mesh.setTexture(id, texId);
+            
+            Vec3 color = Tint::key(tint, id);
+            mesh.setColor(id, color.x, color.y, color.z);
+            
+            collision.set(id, CollisionType::STATIC_COLLIDER);
+        }
+
+        return float(maxY + 1) * height;
+    };
+
+    
+    float l1 = buildLayer(ChunkType::Flat, origin.y);
+    float l2 = origin.y + l1; buildLayer(ChunkType::Cheese, l2);
 
     collision.build();
-
     LightingManager::ShadowMap::markUsed();
 }
 
@@ -171,9 +206,6 @@ void Terrain::update() {
  */
 void Terrain::render() {
     Skybox::render();
-
-    static const ChunkData cd{};
-    updateBoundary(lastChunk ? *lastChunk : cd);
 }
 
 /**

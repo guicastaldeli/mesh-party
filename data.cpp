@@ -8,6 +8,7 @@ Data::~Data() {};
 /**
  * Load Terrain
  */
+/*
 void Data::loadTerrain() {
     noise.maxHeight = float(chunk.sizeZ);
     noise.minHeight = 0.0f;
@@ -15,10 +16,9 @@ void Data::loadTerrain() {
     heightmap = Heightmap::generateHeightmap(chunk.sizeX, chunk.sizeZ, noise);
     chunkData = Chunk::generateChunk(chunk, heightmap);
     
-    terrain.trackCollision = collision;
-    terrain.upload(chunkData);
+    terrain.generate(chunkData);
     hasTerrain = true;
-}
+}*/
 
 /**
  * 
@@ -44,6 +44,5 @@ void Data::init() {
     chunkData = Chunk::generateChunk(chunk, heightmap);
     
     hasTerrain = true;
-    terrain.trackCollision = collision;
-    terrain.upload(chunkData);
+    terrain.generate(chunk);
 }

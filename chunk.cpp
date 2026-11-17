@@ -77,13 +77,21 @@ ChunkData Chunk::generateChunk(const ChunkParams& p, const Heightmap& heightmap)
                     break;
                 }
                 case ChunkType::Cheese:
-                    for(int y = 0; y < hInt; ++y) {
+                    /*for(int y = 0; y < hInt; ++y) {
+                        c.at(x, y, z) = (dist(rng) < p.cheeseDensity) ? p.matSolid : 0;
+                    }*/
+                    for(int y = 0; y < c.sy; ++y) {
                         c.at(x, y, z) = (dist(rng) < p.cheeseDensity) ? p.matSolid : 0;
                     }
                     break;
                 case ChunkType::Cave: {
-                    for(int y = 0; y < hInt; y++) {
+                    /*for(int y = 0; y < hInt; y++) {
                         float n = heightmap.at(x, z) * 0.05f + float(y) * 0.15f;
+                        float f = std::fmod(std::fabs(n), 1.0f);
+                        c.at(x, y, z) = (f > p.caveThreshold) ? p.matSolid : 0;
+                    }*/
+                    for(int y = 0; y < c.sy; y++) {
+                        float n = float(x) * 0.1f + float(z) * 0.1f + float(y) * 0.15f;
                         float f = std::fmod(std::fabs(n), 1.0f);
                         c.at(x, y, z) = (f > p.caveThreshold) ? p.matSolid : 0;
                     }

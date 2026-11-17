@@ -156,22 +156,6 @@ private:
      * 
      */
 
-    /*******
-     * 
-     * Bounds
-     * 
-     */
-    struct Bounds {
-        Vec3 min, max;
-        Vec3 center() const { return { (min.x+max.x), (min.y+max.y), (min.z+max.z) }; }
-        Vec3 size() const { return { max.x-min.x, max.y-min.y, max.z-min.z }; }
-    };
-
-    Bounds getBounds(const std::string& type) const;
-    /**
-     * 
-     */
-
     std::unordered_map<std::string, BufferData> bufferMeshes;
     std::unordered_map<uint32_t, Transform>     transforms;
     std::unordered_map<uint32_t, std::string>   idToType;
@@ -431,6 +415,22 @@ private:
 public:
     Mesh(Main& main, Shader& shader, Camera& camera);
     ~Mesh();
+
+    /*******
+     * 
+     * Bounds
+     * 
+     */
+    struct Bounds {
+        Vec3 min, max;
+        Vec3 center() const { return { (min.x+max.x), (min.y+max.y), (min.z+max.z) }; }
+        Vec3 size() const { return { max.x-min.x, max.y-min.y, max.z-min.z }; }
+    };
+
+    Bounds getBounds(const std::string& type) const;
+    /**
+     * 
+     */
 
     inline static constexpr size_t kVertexStride = sizeof(Vertex) / sizeof(float);
     const std::vector<void*> getUniformBuffersMapped() const { return uniformBuffersMapped; } 

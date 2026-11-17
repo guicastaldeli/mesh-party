@@ -30,9 +30,10 @@ struct Skybox {
     inline static float posY = 0.0f;
     inline static float posZ = 0.0f;
 
-    inline static float scaleX = MAX_CHUNK_X_SIZE * 10.0f;
-    inline static float scaleY = MAX_CHUNK_Y_SIZE * 10.0f;
-    inline static float scaleZ = MAX_CHUNK_Z_SIZE * 10.0f;
+    inline static float m = 10.0f;
+    inline static float scaleX = CHUNK_X_SIZE     * m;
+    inline static float scaleY = MAX_CHUNK_Y_SIZE * m;
+    inline static float scaleZ = CHUNK_Z_SIZE     * m;
 
     inline static void render();
     inline static void set();
@@ -57,8 +58,8 @@ private:
     Vec3 origin = Vec3(0, 0, 0);
     const ChunkData* lastChunk = nullptr;
 
-    BoundaryCollider boundary{ 100.0f };
-    inline static const float BOUNDARY_MULTIPLIER = 8.0f;
+    BoundaryCollider boundary{ 0.0f };
+    float boundaryRadius = 30.0f;
 
     inline static constexpr const char* MESH_TYPE = "cube";
     const char* ids = "terrain";
@@ -74,13 +75,12 @@ public:
     Terrain(Tick& tick, Mesh& mesh, CollisionManager& collision);
     ~Terrain();
 
-    bool trackCollision = true;
-
     Mesh& getMesh() const;
 
     void set();
+    void setBoundary(const ChunkData& chunkData);
 
-    void upload(const ChunkData& chunkData);
+    void generate(const ChunkParams& params);
 
     void update();
     

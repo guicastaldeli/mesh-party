@@ -21,10 +21,10 @@ Main::Main() {
     collision   = new CollisionManager(*tick, *mesh);
     terrain     = new Terrain(*tick, *mesh, *collision);
     data        = new Data(*terrain);
-    ui          = new UI(*this, *window);
+    //ui          = new UI(*this, *window);
 }
 Main::~Main() {
-    delete ui;          ui = nullptr;
+    //delete ui;          ui = nullptr;
     delete data;        data = nullptr;
     delete terrain;     terrain = nullptr;
     delete collision;   collision = nullptr;
@@ -234,7 +234,7 @@ void Main::Create() {
 void Main::Render(VkCommandBuffer commandPass) {
     terrain->render();
     mesh->render(false);
-    ui->R<Data>(commandPass, *data);
+    //ui->R<Data>(commandPass, *data);
 }
 
 // Render Pass
@@ -297,7 +297,7 @@ void Main::Init() {
     mesh->init(data);
     terrain->init();
     data->init();
-    ui->I<Main>();
+    //ui->I<Main>();
 
     addLighting();
 }
@@ -347,7 +347,7 @@ void Main::Cleanup() {
     shader->cleanup();
     mesh->cleanup();
     terrain->cleanup();
-    ui->C<Main>();
+    //ui->C<Main>();
 
     if(device != VK_NULL_HANDLE) vkDestroyDevice(device, nullptr);
     if(window->surface != VK_NULL_HANDLE) vkDestroySurfaceKHR(instance, window->surface, nullptr);

@@ -210,7 +210,7 @@ void Input::setCallbacks() {
 void Input::update() {
     if(pressed(Bindings::TOGGLE)) {
         main.camera->toggle();
-        main.ui->visible = main.camera->isPaused();
+        //main.ui->visible = main.camera->isPaused();
         setCursorCaptured(!main.camera->isPaused());
     }
     if(m_cursorCaptured) {
@@ -219,7 +219,7 @@ void Input::update() {
         }
     } else {
         if(main.camera->isPaused() && 
-            !main.ui->visible && 
+            //!main.ui->visible && 
             pressedMouse(GLFW_MOUSE_BUTTON_LEFT)) {
             setCursorCaptured(true);
         }
