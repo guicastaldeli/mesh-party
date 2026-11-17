@@ -1,0 +1,524 @@
+/****************************** 
+ * 
+ * 
+ * main Mesh data config...
+ * 
+ * 
+ * ***********************/
+#include <mesh.hpp>
+#include <cake.hpp>
+#include <shader.hpp>
+#include <camera.hpp>
+#include <cstring>
+
+Mesh::Mesh(Main& main, Shader& shader, Camera& camera) : 
+    main(main),
+    shader(shader),
+    camera(camera) {
+    texture = new TextureLoader(main);
+    lighting = new LightingManager(main, shader, *this); 
+};
+Mesh::~Mesh() {
+    delete lighting;    lighting = nullptr;
+    delete texture;     texture = nullptr;
+};
+
+/**
+ * Set Data
+ */
+void Mesh::setData(gData* d) {
+    data = d;
+}
+
+/**
+ * Get Data
+ */
+const gData* Mesh::getData() const {
+    return data;
+}
+
+/**
+ * Get Camera
+ */
+const Camera& Mesh::getCamera() const {
+    return camera;
+}
+
+/**
+ * Get Texture Loader
+ */
+TextureLoader* Mesh::getTextureLoader() const {
+    return texture;
+}
+
+/**
+ * Set Texture
+ */
+void Mesh::setTexture(uint32_t id, uint32_t texId) {
+    textureIds[id] = texId;
+}
+
+/**
+ * Get Texture
+ */
+uint32_t Mesh::getTexture(uint32_t id) const {
+    auto it = textureIds.find(id);
+    return it == textureIds.end() ? 0u : it->second;
+}
+
+/**
+ * Get Lighting Manager
+ */
+LightingManager* Mesh::getLightingManager() const {
+    return lighting;
+}
+
+/**
+ * Set Has Lit
+ */
+void Mesh::setHasLit(uint32_t id, bool lit) {
+    hasLitIds[id] = lit ? 1u : 0u;
+}
+
+/**
+ * Get Vertices
+ */
+const std::vector<float>* Mesh::getVertices(const std::string type) const {
+    const auto& dataMap = Data();
+    auto it = dataMap.find(type);
+    if(it == dataMap.end()) return nullptr;
+    return &it->second.vertices;
+}
+
+/**
+ * Get Type
+ */
+std::string Mesh::getType(uint32_t id) const {
+    auto it = idToType.find(id);
+    return (it == idToType.end()) ? std::string{} : it->second;
+}
+
+/**
+ * Get Position
+ */
+Vec3 Mesh::getPosition(uint32_t id) const {
+    auto it = transforms.find(id);
+    if(it == transforms.end()) return Vec3(0.0f, 0.0f, 0.0f);
+    return it->second.position;
+}
+
+/**
+ * Set Position
+ */
+void Mesh::setPosition(uint32_t id, float x, float y, float z) {
+    auto& t = transforms[id];
+    t.position = Vec3(x, y, z);
+}
+
+/**
+ * Set Rotation
+ */
+void Mesh::setRotation(uint32_t id, float x, float y, float z) {
+    auto& t = transforms[id];
+    t.rotation.x += x;
+    t.rotation.y += y;
+    t.rotation.z += z;
+}
+
+/**
+ * Set Scale
+ */
+void Mesh::setScale(uint32_t id, float x, float y, float z) {
+    auto& t = transforms[id];
+    t.scale = Vec3(x, y, z);
+}
+
+/**
+ * Set Color
+ */
+void Mesh::setColor(uint32_t id, float r, float g, float b) {
+    transforms[id].color = Vec3(r, g, b);
+}
+
+/**
+ * Get Transform
+ */
+const Transform& Mesh::getTransform(uint32_t id) const {
+    return transforms.at(id);
+}
+
+/**
+ * Get Buffer Data
+ */
+const Mesh::BufferData& Mesh::getBufferData(const std::string& type) const {
+    return bufferMeshes.at(type);
+}
+
+/**
+ * Upload Mesh
+ */
+void Mesh::uploadMesh(const std::string& type, const MeshData& data) {
+    VkDeviceSize vertexSize = sizeof(float) * data.vertices.size();
+    VkDeviceSize indexSize = sizeof(uint32_t) * data.indices.size();
+
+    BufferData bufferData;
+    bufferData.indexCount = static_cast<uint32_t>(data.indices.size());
+
+    VkBuffer vertexStaging, indexStaging;
+    VkDeviceMemory vertexStagingMem, indexStagingMem;
+
+    createBuffer(vertexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexStaging, vertexStagingMem);
+    createBuffer(indexSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, indexStaging, indexStagingMem);
+
+    void* vData;
+    vkMapMemory(device, vertexStagingMem, 0, vertexSize, 0, &vData);
+    memcpy(vData, data.vertices.data(), (size_t)vertexSize);
+    vkUnmapMemory(device, vertexStagingMem);
+
+    void* iData;
+    vkMapMemory(device, indexStagingMem, 0, indexSize, 0, &iData);
+    memcpy(iData, data.indices.data(), (size_t)indexSize);
+    vkUnmapMemory(device, indexStagingMem);
+
+    createBuffer(vertexSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, bufferData.vertexBuffer, bufferData.vertexBufferMemory);
+    createBuffer(indexSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, bufferData.indexBuffer, bufferData.indexBufferMemory);
+    
+    copyBuffer(vertexStaging, bufferData.vertexBuffer, vertexSize);
+    copyBuffer(indexStaging, bufferData.indexBuffer, indexSize);
+
+    Vec3 mn(std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max(),
+            std::numeric_limits<float>::max());
+    Vec3 mx(-std::numeric_limits<float>::max(),
+            -std::numeric_limits<float>::max(),
+            -std::numeric_limits<float>::max());
+
+    const size_t stride = 11;
+    for(size_t i = 0; i+2 < data.vertices.size(); i += stride) {
+        float x = data.vertices[i+0];
+        float y = data.vertices[i+1];
+        float z = data.vertices[i+2];
+        if(x < mn.x) mn.x = x; if(x > mx.x) mx.x = x;
+        if(y < mn.y) mn.y = y; if(y > mx.y) mx.y = y;
+        if(z < mn.z) mn.z = z; if(z > mx.z) mx.z = z;
+    }
+
+    bufferData.minBounds = mn;
+    bufferData.maxBounds = mx;
+
+    vkDestroyBuffer(device, vertexStaging, nullptr);
+    vkFreeMemory(device, vertexStagingMem, nullptr);
+    vkDestroyBuffer(device, indexStaging, nullptr);
+    vkFreeMemory(device, indexStagingMem, nullptr);
+
+    bufferMeshes[type] = bufferData;
+}
+
+/**
+ * Create Buffer
+ */
+void Mesh::createBuffer(
+    VkDeviceSize size,
+    VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags properties,
+    VkBuffer& buffer,
+    VkDeviceMemory& bufferMemory
+) {
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if(vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create buffer!");
+    }
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+    if(vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate buffer memory!");
+    }
+
+    vkBindBufferMemory(device, buffer, bufferMemory, 0);
+}
+
+/**
+ * Get Bounds
+ */
+Mesh::Bounds Mesh::getBounds(const std::string& type) const {
+    auto it = bufferMeshes.find(type);
+    if(it != bufferMeshes.end()) {
+        return { it->second.minBounds, it->second.maxBounds };
+    }
+
+    const auto& dataMap = Data();
+    auto dit = dataMap.find(type);
+    if(dit == dataMap.end()) throw std::runtime_error("Mesh::getBounds: unknown type " + type);
+
+    return { dit->second.minBounds, dit->second.maxBounds }; 
+}
+
+/**
+ * Set Init
+ */
+void Mesh::setInit(VkDevice device,
+            VkCommandPool commandPool,
+            VkQueue graphicsQueue,
+            VkPhysicalDevice physicalDevice,
+            uint32_t maxFrames)
+{
+    this->device = device;
+    this->commandPool = commandPool;
+    this->graphicsQueue = graphicsQueue;
+    this->physicalDevice = physicalDevice;
+    this->maxFrames = maxFrames;
+}
+
+/**
+ * Set Instance Buffer
+ */
+void Mesh::setInstanceBuffer(VkDeviceSize size) {
+    if(size > instanceBufferRequestedSize) instanceBufferRequestedSize = size;
+}
+
+/**
+ * 
+ * Load
+ * 
+ */
+void Mesh::load(uint32_t id, const std::string& type) {
+    if(bufferMeshes.find(type) == bufferMeshes.end()) {
+        const auto& dataMap = Data();
+        auto it = dataMap.find(type);
+        if(it == dataMap.end()) throw std::runtime_error("Unknown mesh type: " + type);
+        uploadMesh(type, it->second);
+    }
+
+    if(transforms.find(id) == transforms.end()) {
+        transforms[id] = Transform{};
+        idToType[id] = type;
+    }
+
+    idToType[id] = type;
+    
+    bool already = false;
+    for(const auto& e : pendingInstances) {
+        if(e.id == id) {
+            already = true;
+            break;
+        }
+    }
+    if(!already) {
+        Transform& t = transforms.at(id);
+        Mat4 model = t.GetModelMatrix();
+
+        InstanceEntry entry{};
+        entry.id = id;
+        entry.model = model;
+        entry.type = type;
+        pendingInstances.push_back(entry);
+    }
+}
+
+/**
+ * 
+ * Render
+ * 
+ */
+// Render Instances
+void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint32_t setCount) {
+    if(pendingInstances.empty()) return;
+
+    UniformBuffer ubo{};
+    Mat4 view = camera.getViewMatrix();
+    Mat4 proj = camera.getProjectionMatrix();
+    for(int r = 0; r < 4; ++r) {
+        for(int c = 0; c < 4; ++c) {
+            ubo.view.m[r][c] = view.m[c][r];
+            ubo.proj.m[r][c] = proj.m[c][r];
+        }
+    }
+
+    ubo.cameraPos = camera.getPosition();
+    lighting->upload(ubo);
+    std::memcpy(uniformBuffersMapped[main.currentFrame], &ubo, sizeof(ubo));
+
+    const int dataCount = 3;
+    struct DataInstance {
+        Mat4 model;
+        uint32_t texId;
+        uint32_t hasTexture;
+        uint32_t hasLit;
+        Vec3 color;
+    };
+    static_assert(sizeof(DataInstance) == sizeof(Mat4) + 
+                    sizeof(uint32_t) * dataCount + sizeof(Vec3), 
+                    "DataInstance layout must match vertex input stride");
+
+    std::unordered_map<std::string, std::vector<DataInstance>> byType;
+    for(auto& entry : pendingInstances) {
+        auto tit = transforms.find(entry.id);
+        if(tit == transforms.end()) continue;
+
+        Mat4 model = tit->second.GetModelMatrix();
+        Mat4 transported{};
+        for(int r = 0; r < 4; ++r)
+        for(int c = 0; c < 4; ++c) {
+            transported.m[r][c] = model.m[c][r];
+        }
+
+        DataInstance di{};
+        di.model = transported;
+        di.texId = getTexture(entry.id);
+        di.hasTexture = (textureIds.count(entry.id) > 0) ? 1u : 0u;
+        auto litIt = hasLitIds.find(entry.id);      di.hasLit = (litIt != hasLitIds.end()) ? litIt->second : 1u;
+        di.color = tit->second.color;
+        
+        byType[entry.type].push_back(di);
+    }
+    
+    VkDeviceSize totalSize = 0;
+    for(auto& [type, models] : byType) totalSize += sizeof(DataInstance) * models.size();
+    if(totalSize > instanceBufferSize) {
+        throw std::runtime_error("Mesh::renderInstances: instance buffer overflow "
+                                "(grow it in beginFrame)");
+    }
+
+    void* mappedData = nullptr;
+    vkMapMemory(device, instanceBufferMemory, 0, totalSize, 0, &mappedData);
+
+    VkCommandBuffer cmd = main.getCurrentCommandBuffer();
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, setCount, sets, 0, nullptr);
+
+    VkDeviceSize currentOffset = 0;
+    for(auto& [type, models] : byType) {
+        VkDeviceSize size = sizeof(DataInstance) * models.size();
+        std::memcpy((char*)mappedData + currentOffset, models.data(), (size_t)size);
+
+        const BufferData& bufferData = bufferMeshes.at(type);
+        
+        VkBuffer vbs[] = { bufferData.vertexBuffer, instanceBuffer };
+        VkDeviceSize offsets[] = { 0, currentOffset };
+
+        vkCmdBindVertexBuffers(cmd, 0, 2, vbs, offsets);
+        vkCmdBindIndexBuffer(cmd, bufferData.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd, bufferData.indexCount,
+                        static_cast<uint32_t>(models.size()),
+                        0, 0, 0);
+
+        drawCalls++;
+        currentOffset += size;
+    }
+
+    vkUnmapMemory(device, instanceBufferMemory);
+}
+
+// Render
+void Mesh::render(bool shadowPass) {
+    if(shadowPass) {
+        VkDescriptorSet sets[] = { descriptorSets[main.currentFrame] };
+        renderInstances(LightingManager::ShadowMap::shadowPipelineLayout, sets, static_cast<uint32_t>(std::size(sets)));
+    } else {
+        VkDescriptorSet sets[] = {
+            descriptorSets[main.currentFrame],
+            texture->getDescriptorSet(main.currentFrame),
+            LightingManager::ShadowMap::shadowDescriptorSet
+        };
+        renderInstances(main.pipelineLayout, sets, static_cast<uint32_t>(std::size(sets)));
+    }
+}
+
+// Render Shadow Pass
+void Mesh::renderShadowPass(VkCommandBuffer cmd) {
+    LightingManager::ShadowMap::render(cmd, *this);
+}
+
+/**
+ * 
+ * Init
+ * 
+ */
+void Mesh::init(gData* data) {
+    createDescriptorSetLayout();
+    createUniformBuffers();
+    createDescriptorPool();
+    createDescriptorSets();
+
+    setData(data);
+    texture->init(main.MAX_FRAMES_IN_FLIGHT);
+    lighting->init();
+}
+
+/**
+ * 
+ * Create
+ * 
+ */
+void Mesh::create() {
+    lighting->create();
+}
+
+/**
+ * Cleanup
+ */
+void Mesh::cleanup() {
+    if(instanceBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, instanceBuffer, nullptr);
+        vkFreeMemory(device, instanceBufferMemory, nullptr);
+        instanceBuffer = VK_NULL_HANDLE;
+        instanceBufferMemory = VK_NULL_HANDLE;
+    }
+    
+    for(auto& pair : bufferMeshes) {
+        vkDestroyBuffer(device, pair.second.vertexBuffer, nullptr);
+        vkFreeMemory(device, pair.second.vertexBufferMemory, nullptr);
+        vkDestroyBuffer(device, pair.second.indexBuffer, nullptr);
+        vkFreeMemory(device, pair.second.indexBufferMemory, nullptr);
+    }
+
+    for(size_t i = 0; i < uniformBuffers.size(); i++) {
+        vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+        vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+    }
+    uniformBuffers.clear();
+    uniformBuffersMemory.clear();
+    uniformBuffersMapped.clear();
+
+    if(descriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+        descriptorPool = VK_NULL_HANDLE;
+    }
+    if(descriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+        descriptorSetLayout = VK_NULL_HANDLE;
+    }
+    transforms.clear();
+    idToType.clear();
+
+    texture->cleanup();
+}
+
+/**
+ * Clear Instances
+ */
+void Mesh::clearInstances(const std::vector<uint32_t>& ids) {
+    std::unordered_set<uint32_t> removeSet(ids.begin(), ids.end());
+    for(uint32_t id : ids) {
+        transforms.erase(id);
+        idToType.erase(id);
+        hasLitIds.erase(id);
+        textureIds.erase(id);
+    }
+
+    pendingInstances.erase(
+        std::remove_if(pendingInstances.begin(), pendingInstances.end(),
+                        [&](const InstanceEntry& e) {
+                            return removeSet.count(e.id) > 0;
+                        }),
+                        pendingInstances.end());
+}

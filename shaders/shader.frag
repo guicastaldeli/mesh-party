@@ -1,0 +1,51 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "ubo.glsl"
+
+layout(location = 0) in vec3 fragColor;
+layout(location = 1) in vec2 fragUv;
+layout(location = 2) flat in uint fragTexIndex;
+layout(location = 3) flat in uint fragHasTexture;
+layout(location = 4) in vec3 fragPosWorld;
+layout(location = 5) in vec3 fragNormal;
+layout(location = 6) flat in uint fragHasLit;
+layout(location = 7) in vec3 fragInstanceColor;
+
+layout(set = 1, binding = 0) uniform sampler2D tex[];
+
+#include "lighting.glsl"
+
+layout(location = 0) out vec4 outColor;
+
+void main() {
+    vec4 baseColor;
+    if(fragHasTexture != 0u) {
+        baseColor = texture(tex[nonuniformEXT(fragTexIndex)], fragUv) * vec4(fragInstanceColor, 1.0);
+    } else {
+        baseColor = vec4(fragColor * fragInstanceColor, 1.0);
+    }
+    
+
+    vec3 viewDir = normalize(ubo.cameraPos.xyz - fragPosWorld);
+    if(fragHasLit == 0u) {
+        outColor = baseColor;
+        return;
+    }
+
+    /*  Ambient Light Color  */ vec3 ambientLightColor = setAmbientLight(baseColor);
+    /*   Directional Light   */ setDirectionalLight(baseColor, ambientLightColor);
+    /*      Point Light      */ setPointLight(baseColor, ambientLightColor);
+
+    vec4 fragPosLightSpace = ubo.lightSpaceMatrix * vec4(fragPosWorld, 1.0);
+    
+    vec3 shadowData = calcShadow(fragPosLightSpace);
+    float shadow = shadowData.x;
+
+    vec3 litColor = ambientLightColor;
+    vec3 shadowColor = setAmbientLight(baseColor);
+    vec3 finalColor = mix(litColor, shadowColor, shadow);
+
+    outColor = vec4(finalColor, 1.0);
+    return;
+}
