@@ -86,7 +86,7 @@ void Terrain::set() {
 }
 
 // Set Boundary
-void Terrain::setBoundary(const ChunkData& chunkData) {
+void Terrain::setBoundary(const ChunkParams& params) {
     bool registered = false;
     for(Collider* c : collision.getColliders()) {
         if(c == &boundary) { registered = true; break; }
@@ -95,8 +95,8 @@ void Terrain::setBoundary(const ChunkData& chunkData) {
         collision.addCollider(&boundary);
     }
     
-    float cx = origin.x + (chunkData.sx * 0.5f);
-    float cz = origin.z + (chunkData.sz * 0.5f);
+    float cx = origin.x + (float(params.sizeX * 0.5f));
+    float cz = origin.z + (float(params.sizeZ * 0.5f));
     
     boundary.update({cx, 0.0f, cz}, boundaryRadius);
 }
@@ -160,10 +160,12 @@ void Terrain::generate(const ChunkParams& params) {
     std::vector<TerrainMeshType> types(meshEnums.begin(), meshEnums.end());
 
     float l1 =      buildLayer(ChunkType::Flat, { TerrainMeshType::Cube }, origin.y);
-    //float l2 = l1;  buildLayer(ChunkType::Cheese, types, l2);
+    float l2 = l1;  buildLayer(ChunkType::Cheese, types, l2);
 
     collision.build();
     LightingManager::ShadowMap::markUsed();
+
+    //setBoundary(params);
 }
 
 /**
@@ -177,7 +179,7 @@ void Terrain::update() {
     mesh.setRotation(1, deltaTime, 0.0f, 0.0f);
     mesh.setRotation(2, 0.0f, 0.0f, deltaTime);*/
 
-    TextureResult tex = mesh.getTextureLoader()->load("test2.jpg");
+    /*TextureResult tex = mesh.getTextureLoader()->load("test2.jpg");
     uint32_t texId = tex.texId;
     int id = 9999;
     mesh.setPosition(id, 30.0f, 3.0f, 30.0f);
@@ -185,7 +187,7 @@ void Terrain::update() {
     mesh.load(id, "pyramid");
     //mesh.setTexture(id, texId);
 
-    /*int id2 = 99999;
+    int id2 = 99999;
     mesh.setPosition(id2, 18.0f, 1.0f, 18.0f);
     mesh.load(id2, "cube");
     mesh.setTexture(id2, texId);

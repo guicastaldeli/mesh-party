@@ -60,10 +60,11 @@ struct Skybox {
  * **/
 enum class TerrainMeshType {
     Cube,
-    Sphere
+    Sphere,
+    Pyramid
 };
 
-template<> inline constexpr int reflect::enum_count<TerrainMeshType> = 2;
+template<> inline constexpr int reflect::enum_count<TerrainMeshType> = 3;
 /**
  * 
  */
@@ -97,7 +98,7 @@ public:
     Mesh& getMesh() const;
 
     void set();
-    void setBoundary(const ChunkData& chunkData);
+    void setBoundary(const ChunkParams& params);
 
     void generate(const ChunkParams& params);
 

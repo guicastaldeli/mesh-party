@@ -101,9 +101,9 @@ public:
     float zFar = 1000.0f;
     float fov = 120.0f;
 
-    float POS_X = 30.0f;
+    float POS_X = 60.0f;
     float POS_Y = 20.0f;
-    float POS_Z = 30.0f;
+    float POS_Z = 60.0f;
 
     float MOVE_SPEED = 10.0f;
     float MOUSE_SENSV = 0.0025f;
