@@ -21,7 +21,7 @@ layout(binding = 0) uniform UniformBuffer {
     int dirLightCount;
     vec2 padding;
 
-    LightData pointLights [32];
+    LightData pointLights [64]; // POINT_LIGHT_LIMIT
     DirLightData dirLights[4];
 
     mat4 lightSpaceMatrix;

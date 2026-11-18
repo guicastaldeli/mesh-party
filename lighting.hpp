@@ -15,6 +15,8 @@
 #define SHADOW_MAP_WIDTH 2048
 #define SHADOW_MAP_HEIGHT 2048
 
+#define POINT_LIGHT_LIMIT 64
+
 struct UniformBuffer;
 
 /********************
@@ -40,7 +42,7 @@ struct Lights {
     int dirCount;
     float padding1[2];
 
-    LightData pointLights[32];
+    LightData pointLights[POINT_LIGHT_LIMIT];
     DirLightData dirLights[4];
 
     Mat4 lightSpaceMatrix;

@@ -28,9 +28,13 @@ void setPointLight(vec4 color, inout vec3 ambientLightColor) {
         vec3 lightPos = ubo.pointLights[i].position.xyz;
         vec3 toLight = lightPos - fragPosWorld;
         float dist = length(toLight);
+        float radius = 3.0;
+        if(dist > radius) continue;
+
         vec3 lightDir = normalize(toLight);
 
-        float att = 1.0 / (1.0 + 0.5 * dist + 0.2 * dist * dist);
+        float att = 1.0 - (dist / radius);
+        att = att * att;
 
         float diff = max(dot(fragNormal, normalize(toLight)), 0.0);
 

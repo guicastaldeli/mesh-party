@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <array>
+#include <functional>
 #include <utils/tint.hpp>
 #include <random> 
 #include <tick.hpp>
@@ -69,6 +70,24 @@ template<> inline constexpr int reflect::enum_count<TerrainMeshType> = 3;
  * 
  */
 
+/***********
+ * 
+ * Terrain Layer Config
+ * 
+ ********/
+struct TerrainLayerConfig {
+    ChunkType chunkType;
+    std::vector<TerrainMeshType> meshTypes;
+    uint32_t texId;
+    bool hasTex;
+    bool lit;
+    bool pointLight;
+    Vec3 color;
+};
+/**
+ * 
+ */
+
 class Terrain {
 private:
     Tick& tick;
@@ -98,7 +117,10 @@ public:
     Mesh& getMesh() const;
 
     void set();
+    void setLayer(std::function<float(const TerrainLayerConfig&, float)> buildLayer);
     void setBoundary(const ChunkParams& params);
+
+    void addLighting(const uint32_t id, LightingManager* lighting);
 
     void generate(const ChunkParams& params);
 

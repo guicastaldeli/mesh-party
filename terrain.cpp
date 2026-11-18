@@ -74,15 +74,49 @@ Mesh& Terrain::getMesh() const {
  */
 // Set
 void Terrain::set() {
-    TextureResult tex = mesh.getTextureLoader()->load(TEX_PATH);
-    texId = tex.texId;
-
     float tmin = 0.95f;
     float tmax = 1.15f;
     float s = 1337u;
     tint.lo = Vec3(tmin, tmin, tmin);
     tint.hi = Vec3(tmax, tmax, tmax);
     tint.seed = s;
+}
+
+// Set Layer
+void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> buildLayer) {
+    constexpr auto meshEnums = all_enums<TerrainMeshType>();
+    std::vector<TerrainMeshType> types(meshEnums.begin(), meshEnums.end());
+
+    /* Layer 1 */
+        TextureResult tex = mesh.getTextureLoader()->load(TEX_PATH);
+        texId = tex.texId;
+
+        TerrainLayerConfig l1c {
+            .chunkType = ChunkType::Flat,
+            .meshTypes = { TerrainMeshType::Cube },
+            .texId = texId,
+            .hasTex = true,
+            .lit = true,
+            .pointLight = false,
+            .color = Vec3(1, 1, 1)
+        };
+
+        float l1 = buildLayer(l1c, origin.y);
+    /**/
+    /* Layer 2 */
+        TerrainLayerConfig l2c {
+            .chunkType = ChunkType::Cheese,
+            .meshTypes = types,
+            .texId = 0u,
+            .hasTex = false,
+            .lit = true,
+            .pointLight = true,
+            .color = Vec3(1.0f, 2.0f, 0.3f)
+        };
+
+        float l2 = l1;  
+        buildLayer(l2c, l2);
+    /**/
 }
 
 // Set Boundary
@@ -102,6 +136,18 @@ void Terrain::setBoundary(const ChunkParams& params) {
 }
 
 /**
+ * Add Lighting
+ */
+void Terrain::addLighting(const uint32_t id, LightingManager* lighting) {
+    Vec3 pos = mesh.getPosition(id);
+
+    lighting->add(LightType::POINT)
+        .setColor("#1c1fd2")
+        .setPosition(pos.x, pos.y, pos.z)
+        .setIntensity(5.0f);
+}
+
+/**
  * 
  * Generate
  * 
@@ -116,21 +162,26 @@ void Terrain::generate(const ChunkParams& params) {
 
     Heightmap h(params.sizeX, params.sizeZ);
 
-    auto buildLayer = [&](ChunkType type, const std::vector<TerrainMeshType>& meshTypes, float yoffset) -> float {
+    auto buildLayer = [&](const TerrainLayerConfig& config, float yoffset) -> float {
         ChunkParams p = params;
-        p.type = type;
+        p.type = config.chunkType;
 
         ChunkData data = Chunk::generateChunk(p, h);
+        if(config.meshTypes.empty()) return 0.0f;
 
-        std::uniform_int_distribution<size_t> pick(0, meshTypes.size() - 1);
+        std::uniform_int_distribution<size_t> pick(0, config.meshTypes.size() - 1);
+
+        LightingManager* lighting = mesh.getLightingManager();
+        //lighting->clear();
 
         float layerTop = 0.0f;
+        int lightsSpawned = 0;
         for(int z = 0; z < data.sz; ++z)
         for(int y = 0; y < data.sy; ++y)
         for(int x = 0; x < data.sx; ++x) {
             if(data.at(x, y, z) == 0) continue;
 
-            TerrainMeshType rt = meshTypes[pick(rng)];
+            TerrainMeshType rt = config.meshTypes[pick(rng)];
             std::string meshName = enumToStringLower(rt);
 
             float height = mesh.getMeshHeight(meshName);
@@ -145,22 +196,24 @@ void Terrain::generate(const ChunkParams& params) {
                         yoffset + float(y) * height,
                         origin.z + float(z));
             mesh.load(id, meshName);
-            mesh.setTexture(id, texId);
-            
-            Vec3 color = Tint::key(tint, id);
-            mesh.setColor(id, color.x, color.y, color.z);
-            
+
+            if(config.hasTex) mesh.setTexture(id, texId);
+            mesh.setHasLit(id, config.lit);
+            Vec3 t = Tint::key(tint, id); mesh.setColor(id, 
+                                                        config.color.x * t.x,
+                                                        config.color.y * t.y,
+                                                        config.color.z * t.z);
+            if(config.pointLight ) {
+                addLighting(id, lighting);
+                //lightsSpawned++;
+            }
             collision.set(id, CollisionType::STATIC_COLLIDER);
         }
 
         return layerTop;
     };
 
-    constexpr auto meshEnums = all_enums<TerrainMeshType>();
-    std::vector<TerrainMeshType> types(meshEnums.begin(), meshEnums.end());
-
-    float l1 =      buildLayer(ChunkType::Flat, { TerrainMeshType::Cube }, origin.y);
-    float l2 = l1;  buildLayer(ChunkType::Cheese, types, l2);
+    setLayer(buildLayer);
 
     collision.build();
     LightingManager::ShadowMap::markUsed();

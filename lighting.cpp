@@ -34,7 +34,7 @@ void AmbientLight::upload(UniformBuffer& ubo) const {
 }
 
 void PointLight::uploadCount(UniformBuffer& ubo, int count) {
-    ubo.lights.pointCount = std::min(count, 32);
+    ubo.lights.pointCount = std::min(count, POINT_LIGHT_LIMIT);
 }
 
 /****************
@@ -84,7 +84,7 @@ void PointLight::upload(UniformBuffer& ubo) const {
             break;
         }
     }
-    if(i < 0 || i >= 32) return;
+    if(i < 0 || i >= POINT_LIGHT_LIMIT) return;
 
     ubo.lights.pointLights[i].position[0] = position.x;
     ubo.lights.pointLights[i].position[1] = position.y;
