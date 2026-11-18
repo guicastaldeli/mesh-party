@@ -23,6 +23,9 @@
 #include <cstddef>
 #include <lighting.hpp>
 #include <data.hpp>
+#include <algorithm>
+#include <.lib/enum/enum_reflect.hpp>
+#include <.lib/enum/enum_combo.hpp>
 
 class Main;
 class Shader;
@@ -448,6 +451,8 @@ public:
     uint32_t getTexture(uint32_t id) const;
 
     LightingManager* getLightingManager() const;
+
+    float getMeshHeight(const std::string& type) const;
 
     const std::vector<float>* getVertices(const std::string type) const;
     std::string getType(uint32_t id) const;

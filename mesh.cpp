@@ -81,6 +81,14 @@ void Mesh::setHasLit(uint32_t id, bool lit) {
 }
 
 /**
+ * Get Mesh Height
+ */
+float Mesh::getMeshHeight(const std::string& type) const {
+    Bounds b = getBounds(type);
+    return b.max.y - b.min.y;
+}
+
+/**
  * Get Vertices
  */
 const std::vector<float>* Mesh::getVertices(const std::string type) const {
@@ -307,8 +315,9 @@ void Mesh::load(uint32_t id, const std::string& type) {
     idToType[id] = type;
     
     bool already = false;
-    for(const auto& e : pendingInstances) {
+    for(auto& e : pendingInstances) {
         if(e.id == id) {
+            e.type = type;
             already = true;
             break;
         }

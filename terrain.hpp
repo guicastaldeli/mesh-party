@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <string>
+#include <array>
 #include <utils/tint.hpp>
 #include <random> 
 #include <tick.hpp>
@@ -10,6 +11,9 @@
 #include <collision.hpp>
 #include <utils/vec3.hpp>
 #include <utils/idgen.hpp>
+#include <.lib/enum/enum_reflect.hpp>
+#include <.lib/enum/enum_to_string.hpp>
+#include <.lib/enum/all_enums.hpp>
 
 /*************************** 
  * 
@@ -49,6 +53,21 @@ struct Skybox {
  * Terrain
  * 
  ******************************/
+/************ 
+ * 
+ * Terrain Mesh Type
+ * 
+ * **/
+enum class TerrainMeshType {
+    Cube,
+    Sphere
+};
+
+template<> inline constexpr int reflect::enum_count<TerrainMeshType> = 2;
+/**
+ * 
+ */
+
 class Terrain {
 private:
     Tick& tick;

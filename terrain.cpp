@@ -116,31 +116,35 @@ void Terrain::generate(const ChunkParams& params) {
 
     Heightmap h(params.sizeX, params.sizeZ);
 
-    Mesh::Bounds bounds = mesh.getBounds(MESH_TYPE);
-    float height = bounds.max.y - bounds.min.y;
-
-    auto buildLayer = [&](ChunkType type, float yoffset) -> float {
+    auto buildLayer = [&](ChunkType type, const std::vector<TerrainMeshType>& meshTypes, float yoffset) -> float {
         ChunkParams p = params;
         p.type = type;
 
         ChunkData data = Chunk::generateChunk(p, h);
 
-        int maxY = 0;
+        std::uniform_int_distribution<size_t> pick(0, meshTypes.size() - 1);
+
+        float layerTop = 0.0f;
         for(int z = 0; z < data.sz; ++z)
         for(int y = 0; y < data.sy; ++y)
         for(int x = 0; x < data.sx; ++x) {
             if(data.at(x, y, z) == 0) continue;
 
-            maxY = std::max(maxY, y);
+            TerrainMeshType rt = meshTypes[pick(rng)];
+            std::string meshName = enumToStringLower(rt);
+
+            float height = mesh.getMeshHeight(meshName);
+            float top = yoffset + float(y) * height + height;
+            layerTop = std::max(layerTop, top);
 
             const uint32_t id = static_cast<uint32_t>(IdGen::next(ids));
             spawnedIds.push_back(id);
 
             mesh.setPosition(id,
                         origin.x + float(x),
-                        yoffset + float(y),
+                        yoffset + float(y) * height,
                         origin.z + float(z));
-            mesh.load(id, MESH_TYPE);
+            mesh.load(id, meshName);
             mesh.setTexture(id, texId);
             
             Vec3 color = Tint::key(tint, id);
@@ -149,12 +153,14 @@ void Terrain::generate(const ChunkParams& params) {
             collision.set(id, CollisionType::STATIC_COLLIDER);
         }
 
-        return float(maxY + 1) * height;
+        return layerTop;
     };
 
-    
-    float l1 = buildLayer(ChunkType::Flat, origin.y);
-    float l2 = origin.y + l1; buildLayer(ChunkType::Cheese, l2);
+    constexpr auto meshEnums = all_enums<TerrainMeshType>();
+    std::vector<TerrainMeshType> types(meshEnums.begin(), meshEnums.end());
+
+    float l1 =      buildLayer(ChunkType::Flat, { TerrainMeshType::Cube }, origin.y);
+    float l2 = l1;  buildLayer(ChunkType::Cheese, types, l2);
 
     collision.build();
     LightingManager::ShadowMap::markUsed();
@@ -174,10 +180,10 @@ void Terrain::update() {
     /*TextureResult tex = mesh.getTextureLoader()->load("test2.jpg");
     uint32_t texId = tex.texId;
     int id = 9999;
-    mesh.setPosition(id, 15.0f, 3.0f, 15.0f);
-    mesh.setScale(id, 1.0f, 5.0f, 1.0f);
-    mesh.load(id, "cube");
-    mesh.setTexture(id, texId);
+    mesh.setPosition(id, 30.0f, 3.0f, 30.0f);
+    //mesh.setScale(id, 1.0f, 5.0f, 1.0f);
+    mesh.load(id, "sphere");
+    //mesh.setTexture(id, texId);
 
     int id2 = 99999;
     mesh.setPosition(id2, 18.0f, 1.0f, 18.0f);
