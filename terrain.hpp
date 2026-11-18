@@ -83,6 +83,7 @@ struct TerrainLayerConfig {
     bool lit;
     bool pointLight;
     Vec3 color;
+    bool emissive;
 };
 /**
  * 

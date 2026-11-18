@@ -475,11 +475,16 @@ public:
      * 
      */
 
+    static const int dataCount = 4;
+
     inline static constexpr size_t kVertexStride = sizeof(Vertex) / sizeof(float);
     const std::vector<void*> getUniformBuffersMapped() const { return uniformBuffersMapped; } 
 
     std::unordered_map<uint32_t, uint32_t> hasLitIds;
     void setHasLit(uint32_t id, bool lit);
+
+    std::unordered_map<uint32_t, uint32_t> hasEmissiveIds;
+    void setHasEmissive(uint32_t id, bool emissive);
 
     void setData(gData* d);
     const gData* getData() const;
@@ -523,7 +528,7 @@ public:
     void beginFrame() {
         drawCalls = 0;
 
-        const size_t stride = sizeof(Mat4) + sizeof(uint32_t) * 3 + sizeof(Vec3);
+        const size_t stride = sizeof(Mat4) + sizeof(uint32_t) * dataCount + sizeof(Vec3);
         VkDeviceSize needed = stride * VkDeviceSize(pendingInstances.size());
         if(needed > instanceBufferSize) {
             if(instanceBuffer != VK_NULL_HANDLE) {
@@ -702,15 +707,15 @@ public:
      * Get Vertex Input State
      * *******/
     VkPipelineVertexInputStateCreateInfo getVertexInputState() const {
-        const std::size_t instAttr = 8;
-        const std::size_t combinedArray = 12;
+        const std::size_t instAttr = 9;
+        const std::size_t combinedArray = 13;
 
         static auto bindingDesc = Vertex::getBindingDescription();
         static auto attrDesc = Vertex::getAttributeDescriptions();
 
         static VkVertexInputBindingDescription instanceBinding{};
         instanceBinding.binding = 1;
-        instanceBinding.stride = sizeof(Mat4) + sizeof(uint32_t) * 3 + sizeof(Vec3);
+        instanceBinding.stride = sizeof(Mat4) + sizeof(uint32_t) * dataCount + sizeof(Vec3);
         instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
         static std::array<VkVertexInputAttributeDescription, instAttr> instanceAttr{};
@@ -740,6 +745,11 @@ public:
         instanceAttr[7].location = 11;
         instanceAttr[7].format = VK_FORMAT_R32G32B32_SFLOAT;
         instanceAttr[7].offset = sizeof(Mat4) + sizeof(uint32_t) * 3;
+        // location 12: hasEmissive
+        instanceAttr[8].binding = 1;
+        instanceAttr[8].location = 12;
+        instanceAttr[8].format = VK_FORMAT_R32_UINT;
+        instanceAttr[8].offset = sizeof(Mat4) + sizeof(uint32_t) * 3 + sizeof(Vec3);
 
         static std::array<VkVertexInputBindingDescription, 2> bindings = {
             bindingDesc,

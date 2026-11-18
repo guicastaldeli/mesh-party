@@ -11,6 +11,7 @@ layout(location = 4) in vec3 fragPosWorld;
 layout(location = 5) in vec3 fragNormal;
 layout(location = 6) flat in uint fragHasLit;
 layout(location = 7) in vec3 fragInstanceColor;
+layout(location = 8) flat in uint fragHasEmissive;
 
 layout(set = 1, binding = 0) uniform sampler2D tex[];
 
@@ -25,7 +26,10 @@ void main() {
     } else {
         baseColor = vec4(fragColor * fragInstanceColor, 1.0);
     }
-    
+    if(fragHasEmissive != 0u) {
+        outColor = baseColor * vec4(fragInstanceColor, 1.0) * 2.0f;
+        return;
+    }
 
     vec3 viewDir = normalize(ubo.cameraPos.xyz - fragPosWorld);
     if(fragHasLit == 0u) {

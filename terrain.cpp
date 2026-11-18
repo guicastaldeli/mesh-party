@@ -17,6 +17,7 @@ void Skybox::set() {
     mesh->load(MESH_ID, MESH_TYPE);
     mesh->setTexture(MESH_ID, texId);
     mesh->setHasLit(MESH_ID, false);
+    mesh->setHasEmissive(MESH_ID, false);
 }
 
 // Render
@@ -98,7 +99,8 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
             .hasTex = true,
             .lit = true,
             .pointLight = false,
-            .color = Vec3(1, 1, 1)
+            .color = Vec3(1, 1, 1),
+            .emissive = false
         };
 
         float l1 = buildLayer(l1c, origin.y);
@@ -111,7 +113,8 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
             .hasTex = false,
             .lit = true,
             .pointLight = true,
-            .color = Vec3(1.0f, 2.0f, 0.3f)
+            .color = Vec3(1.0f, 0.3f, 0.0f),
+            .emissive = true
         };
 
         float l2 = l1;  
@@ -175,7 +178,6 @@ void Terrain::generate(const ChunkParams& params) {
         //lighting->clear();
 
         float layerTop = 0.0f;
-        int lightsSpawned = 0;
         for(int z = 0; z < data.sz; ++z)
         for(int y = 0; y < data.sy; ++y)
         for(int x = 0; x < data.sx; ++x) {
@@ -203,10 +205,8 @@ void Terrain::generate(const ChunkParams& params) {
                                                         config.color.x * t.x,
                                                         config.color.y * t.y,
                                                         config.color.z * t.z);
-            if(config.pointLight ) {
-                addLighting(id, lighting);
-                //lightsSpawned++;
-            }
+            //if(config.pointLight) addLighting(id, lighting);
+            if(config.emissive) mesh.setHasEmissive(id, true);
             collision.set(id, CollisionType::STATIC_COLLIDER);
         }
 
@@ -218,7 +218,7 @@ void Terrain::generate(const ChunkParams& params) {
     collision.build();
     LightingManager::ShadowMap::markUsed();
 
-    //setBoundary(params);
+    setBoundary(params);
 }
 
 /**
@@ -235,12 +235,20 @@ void Terrain::update() {
     /*TextureResult tex = mesh.getTextureLoader()->load("test2.jpg");
     uint32_t texId = tex.texId;
     int id = 9999;
-    mesh.setPosition(id, 30.0f, 3.0f, 30.0f);
+    float px = 30.0f;
+    float py = 1.0f;
+    float pz = 30.0f;
+    mesh.setPosition(id, px, py, pz);
     //mesh.setScale(id, 1.0f, 5.0f, 1.0f);
     mesh.load(id, "pyramid");
+    mesh.setHasLit(id, true);
+    mesh.getLightingManager()->add(LightType::POINT)
+        .setColor("#1c1fd2")
+        .setPosition(px, py, pz)
+        .setIntensity(5.0f);
     //mesh.setTexture(id, texId);
 
-    int id2 = 99999;
+    /*int id2 = 99999;
     mesh.setPosition(id2, 18.0f, 1.0f, 18.0f);
     mesh.load(id2, "cube");
     mesh.setTexture(id2, texId);

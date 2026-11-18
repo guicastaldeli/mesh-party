@@ -81,6 +81,13 @@ void Mesh::setHasLit(uint32_t id, bool lit) {
 }
 
 /**
+ * Set Has Emissive
+ */
+void Mesh::setHasEmissive(uint32_t id, bool emissive) {
+    hasEmissiveIds[id] = emissive ? 1u : 0u;
+}
+
+/**
  * Get Mesh Height
  */
 float Mesh::getMeshHeight(const std::string& type) const {
@@ -357,12 +364,12 @@ void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint3
     lighting->upload(ubo);
     std::memcpy(uniformBuffersMapped[main.currentFrame], &ubo, sizeof(ubo));
 
-    const int dataCount = 3;
     struct DataInstance {
         Mat4 model;
         uint32_t texId;
         uint32_t hasTexture;
         uint32_t hasLit;
+        uint32_t hasEmissive;
         Vec3 color;
     };
     static_assert(sizeof(DataInstance) == sizeof(Mat4) + 
@@ -387,6 +394,7 @@ void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint3
         di.hasTexture = (textureIds.count(entry.id) > 0) ? 1u : 0u;
         auto litIt = hasLitIds.find(entry.id);      di.hasLit = (litIt != hasLitIds.end()) ? litIt->second : 1u;
         di.color = tit->second.color;
+        auto emIt = hasEmissiveIds.find(entry.id);  di.hasEmissive = (emIt != hasEmissiveIds.end()) ? emIt->second : 0u;
         
         byType[entry.type].push_back(di);
     }
@@ -521,6 +529,7 @@ void Mesh::clearInstances(const std::vector<uint32_t>& ids) {
         transforms.erase(id);
         idToType.erase(id);
         hasLitIds.erase(id);
+        hasEmissiveIds.erase(id);
         textureIds.erase(id);
     }
 
