@@ -28,6 +28,8 @@ void main() {
     }
     if(fragHasEmissive != 0u) {
         outColor = baseColor * vec4(fragInstanceColor, 1.0) * 2.0f;
+        // dyanmic emissive intensity later on
+        // also make the emissive color...
         return;
     }
 

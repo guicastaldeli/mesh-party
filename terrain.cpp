@@ -22,11 +22,11 @@ void Skybox::set() {
 
 // Render
 void Skybox::render() {
-    if(!mesh) return;
+    /*if(!mesh) return;
 
     mesh->setPosition(MESH_ID, posX, posY, posZ);
     mesh->setScale(MESH_ID, scaleX, scaleY, scaleZ);
-}
+*/}
 
 // Init
 void Skybox::init(Mesh* m, Terrain* t) {
@@ -109,11 +109,11 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
         TerrainLayerConfig l2c {
             .chunkType = ChunkType::Cheese,
             .meshTypes = types,
-            .texId = 0u,
-            .hasTex = false,
+            .texId = texId,
+            .hasTex = true,
             .lit = true,
             .pointLight = true,
-            .color = Vec3(1.0f, 0.3f, 0.0f),
+            .color = Vec3(1, 1, 1),
             .emissive = true
         };
 

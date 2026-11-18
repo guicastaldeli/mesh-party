@@ -369,8 +369,8 @@ void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint3
         uint32_t texId;
         uint32_t hasTexture;
         uint32_t hasLit;
-        uint32_t hasEmissive;
         Vec3 color;
+        uint32_t hasEmissive;
     };
     static_assert(sizeof(DataInstance) == sizeof(Mat4) + 
                     sizeof(uint32_t) * dataCount + sizeof(Vec3), 
