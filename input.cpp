@@ -208,19 +208,12 @@ void Input::setCallbacks() {
  * 
  */
 void Input::update() {
-    if(pressed(Bindings::TOGGLE)) {
-        main.camera->toggle();
-        //main.ui->visible = main.camera->isPaused();
-        setCursorCaptured(!main.camera->isPaused());
-    }
     if(m_cursorCaptured) {
         if(pressed(Bindings::CAPTURE)) {
             setCursorCaptured(false);
-        }
+        } 
     } else {
-        if(main.camera->isPaused() && 
-            //!main.ui->visible && 
-            pressedMouse(GLFW_MOUSE_BUTTON_LEFT)) {
+        if(pressed(Bindings::CAPTURE) || pressedMouse(GLFW_MOUSE_BUTTON_LEFT)) {
             setCursorCaptured(true);
         }
     }
