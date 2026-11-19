@@ -53,6 +53,8 @@ struct UniformBuffer {
  * Data Instance
  * 
  */
+static const int dataCount = 5;
+
 struct DataInstance {
     Mat4 model;
     uint32_t texId;
@@ -62,6 +64,7 @@ struct DataInstance {
     uint32_t hasEmissive;
     float emissiveIntensity;
     Vec3 emissiveColor;
+    float pad0_;
 };
 /**
  * 
@@ -494,8 +497,6 @@ public:
      * 
      */
 
-    static const int dataCount = 6;
-
     inline static constexpr size_t kVertexStride = sizeof(Vertex) / sizeof(float);
     const std::vector<void*> getUniformBuffersMapped() const { return uniformBuffersMapped; } 
 
@@ -507,7 +508,7 @@ public:
     std::unordered_map<uint32_t, float> emissiveIntensityMap;
     void setEmissiveIntensity(uint32_t id, float intensity);
     std::unordered_map<uint32_t, Vec3> emissiveColorMap;
-    void setEmissiveColor(uint32_t id, Vec3 color);
+    void setEmissiveColor(uint32_t id, float r, float g, float b);
 
     void setData(gData* d);
     const gData* getData() const;
@@ -551,7 +552,7 @@ public:
     void beginFrame() {
         drawCalls = 0;
 
-        const size_t stride = sizeof(Mat4) + sizeof(uint32_t) * dataCount + sizeof(Vec3);
+        const size_t stride = sizeof(DataInstance);
         VkDeviceSize needed = stride * VkDeviceSize(pendingInstances.size());
         if(needed > instanceBufferSize) {
             if(instanceBuffer != VK_NULL_HANDLE) {
@@ -782,7 +783,7 @@ public:
         instanceAttr[10].binding = 1;
         instanceAttr[10].location = 14;
         instanceAttr[10].format = VK_FORMAT_R32G32B32_SFLOAT;
-        instanceAttr[10].offset = sizeof(Mat4) + sizeof(uint32_t) * 3 + sizeof(Vec3);
+        instanceAttr[10].offset = sizeof(Mat4) + sizeof(uint32_t) * 3 + sizeof(Vec3) + sizeof(uint32_t) + sizeof(float);
 
         static std::array<VkVertexInputBindingDescription, 2> bindings = {
             bindingDesc,

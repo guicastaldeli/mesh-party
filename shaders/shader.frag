@@ -29,7 +29,8 @@ void main() {
         baseColor = vec4(fragColor * fragInstanceColor, 1.0);
     }
     if(fragHasEmissive != 0u) {
-        outColor = baseColor * vec4(fragEmissiveColor) * vec4(fragInstanceColor * fragEmissiveIntensity, 1.0);
+        vec3 emissive = fragEmissiveColor * fragEmissiveIntensity;
+        outColor = vec4(baseColor.rgb + emissive, 1.0);
         return;
     }
 

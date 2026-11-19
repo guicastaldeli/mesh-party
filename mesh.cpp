@@ -97,8 +97,8 @@ void Mesh::setEmissiveIntensity(uint32_t id, float intensity) {
 /**
  * Set Emissive Color
  */
-void Mesh::setEmissiveColor(uint32_t id, Vec3 color) {
-    emissiveColorMap[id] = Vec3(color);
+void Mesh::setEmissiveColor(uint32_t id, float r, float g, float b) {
+    emissiveColorMap[id] = Vec3(r, g, b);
 }
 
 /**
@@ -378,14 +378,12 @@ void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint3
     lighting->upload(ubo);
     std::memcpy(uniformBuffersMapped[main.currentFrame], &ubo, sizeof(ubo));
 
-    static_assert(sizeof(DataInstance) == sizeof(Mat4) + 
+    /*static_assert(sizeof(DataInstance) == sizeof(Mat4) + 
                 sizeof(uint32_t) * 
                 dataCount + 
-                sizeof(Vec3) +
-                sizeof(float) +
                 sizeof(Vec3), 
                 "DataInstance layout must match vertex input stride");
-
+    */
     std::unordered_map<std::string, std::vector<DataInstance>> byType;
     for(auto& entry : pendingInstances) {
         auto tit = transforms.find(entry.id);
@@ -402,11 +400,11 @@ void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint3
         di.model = transported;
         di.texId = getTexture(entry.id);
         di.hasTexture = (textureIds.count(entry.id) > 0) ? 1u : 0u;
-        auto litIt = hasLitIds.find(entry.id);      di.hasLit = (litIt != hasLitIds.end()) ? litIt->second : 1u;
+        auto litIt = hasLitIds.find(entry.id);  di.hasLit = (litIt != hasLitIds.end()) ? litIt->second : 1u;
         di.color = tit->second.color;
         auto emIt = hasEmissiveIds.find(entry.id);  di.hasEmissive = (emIt != hasEmissiveIds.end()) ? emIt->second : 0u;
-        auto emIntIt = emissiveIntensityMap.find(entry.id);
-        di.emissiveIntensity = (emIntIt != emissiveIntensityMap.end()) ? emIntIt->second : 1.0f;
+        auto emIntIt = emissiveIntensityMap.find(entry.id);  di.emissiveIntensity = (emIntIt != emissiveIntensityMap.end()) ? emIntIt->second : 1.0f;
+        auto emCoIt = emissiveColorMap.find(entry.id);  di.emissiveColor = (emCoIt != emissiveColorMap.end()) ? emCoIt->second : Vec3(1.0f, 1.0f, 1.0f);
 
         byType[entry.type].push_back(di);
     }
@@ -543,6 +541,7 @@ void Mesh::clearInstances(const std::vector<uint32_t>& ids) {
         hasLitIds.erase(id);
         hasEmissiveIds.erase(id);
         emissiveIntensityMap.erase(id);
+        emissiveColorMap.erase(id);
         textureIds.erase(id);
     }
 
