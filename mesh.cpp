@@ -378,19 +378,11 @@ void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint3
     lighting->upload(ubo);
     std::memcpy(uniformBuffersMapped[main.currentFrame], &ubo, sizeof(ubo));
 
-    struct DataInstance {
-        Mat4 model;
-        uint32_t texId;
-        uint32_t hasTexture;
-        uint32_t hasLit;
-        Vec3 color;
-        uint32_t hasEmissive;
-        float emissiveIntensity;
-        Vec3 emissiveColor;
-    };
     static_assert(sizeof(DataInstance) == sizeof(Mat4) + 
                 sizeof(uint32_t) * 
                 dataCount + 
+                sizeof(Vec3) +
+                sizeof(float) +
                 sizeof(Vec3), 
                 "DataInstance layout must match vertex input stride");
 

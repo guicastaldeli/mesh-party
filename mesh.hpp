@@ -48,6 +48,25 @@ struct UniformBuffer {
  * 
  */
 
+/************
+ * 
+ * Data Instance
+ * 
+ */
+struct DataInstance {
+    Mat4 model;
+    uint32_t texId;
+    uint32_t hasTexture;
+    uint32_t hasLit;
+    Vec3 color;
+    uint32_t hasEmissive;
+    float emissiveIntensity;
+    Vec3 emissiveColor;
+};
+/**
+ * 
+ */
+
 /***************
  * 
  *  
@@ -719,7 +738,7 @@ public:
 
         static VkVertexInputBindingDescription instanceBinding{};
         instanceBinding.binding = 1;
-        instanceBinding.stride = sizeof(Mat4) + sizeof(uint32_t) * dataCount + sizeof(Vec3);
+        instanceBinding.stride = sizeof(DataInstance);
         instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
         static std::array<VkVertexInputAttributeDescription, instAttr> instanceAttr{};
