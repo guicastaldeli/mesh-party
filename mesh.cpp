@@ -88,6 +88,20 @@ void Mesh::setHasEmissive(uint32_t id, bool emissive) {
 }
 
 /**
+ * Set Emissive Intensity
+ */
+void Mesh::setEmissiveIntensity(uint32_t id, float intensity) {
+    emissiveIntensityMap[id] = intensity;
+}
+
+/**
+ * Set Emissive Color
+ */
+void Mesh::setEmissiveColor(uint32_t id, Vec3 color) {
+    emissiveColorMap[id] = Vec3(color);
+}
+
+/**
  * Get Mesh Height
  */
 float Mesh::getMeshHeight(const std::string& type) const {
@@ -371,10 +385,14 @@ void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint3
         uint32_t hasLit;
         Vec3 color;
         uint32_t hasEmissive;
+        float emissiveIntensity;
+        Vec3 emissiveColor;
     };
     static_assert(sizeof(DataInstance) == sizeof(Mat4) + 
-                    sizeof(uint32_t) * dataCount + sizeof(Vec3), 
-                    "DataInstance layout must match vertex input stride");
+                sizeof(uint32_t) * 
+                dataCount + 
+                sizeof(Vec3), 
+                "DataInstance layout must match vertex input stride");
 
     std::unordered_map<std::string, std::vector<DataInstance>> byType;
     for(auto& entry : pendingInstances) {
@@ -395,7 +413,9 @@ void Mesh::renderInstances(VkPipelineLayout layout, VkDescriptorSet* sets, uint3
         auto litIt = hasLitIds.find(entry.id);      di.hasLit = (litIt != hasLitIds.end()) ? litIt->second : 1u;
         di.color = tit->second.color;
         auto emIt = hasEmissiveIds.find(entry.id);  di.hasEmissive = (emIt != hasEmissiveIds.end()) ? emIt->second : 0u;
-        
+        auto emIntIt = emissiveIntensityMap.find(entry.id);
+        di.emissiveIntensity = (emIntIt != emissiveIntensityMap.end()) ? emIntIt->second : 1.0f;
+
         byType[entry.type].push_back(di);
     }
     
@@ -530,6 +550,7 @@ void Mesh::clearInstances(const std::vector<uint32_t>& ids) {
         idToType.erase(id);
         hasLitIds.erase(id);
         hasEmissiveIds.erase(id);
+        emissiveIntensityMap.erase(id);
         textureIds.erase(id);
     }
 

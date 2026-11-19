@@ -100,7 +100,9 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
             .lit = true,
             .pointLight = false,
             .color = Vec3(1, 1, 1),
-            .emissive = false
+            .emissive = false,
+            .emissiveIntensity = 0.0f,
+            .emissiveColor = Vec3(1, 1, 1)
         };
 
         float l1 = buildLayer(l1c, origin.y);
@@ -114,7 +116,9 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
             .lit = true,
             .pointLight = true,
             .color = Vec3(1, 1, 1),
-            .emissive = true
+            .emissive = true,
+            .emissiveIntensity = 3.0f,
+            .emissiveColor = Vec3(1.0f, 0.3f, 0.5f)
         };
 
         float l2 = l1;  
@@ -202,11 +206,15 @@ void Terrain::generate(const ChunkParams& params) {
             if(config.hasTex) mesh.setTexture(id, texId);
             mesh.setHasLit(id, config.lit);
             Vec3 t = Tint::key(tint, id); mesh.setColor(id, 
-                                                        config.color.x * t.x,
-                                                        config.color.y * t.y,
-                                                        config.color.z * t.z);
+                                                    config.color.x * t.x, 
+                                                    config.color.y * t.y, 
+                                                    config.color.z * t.z);
             //if(config.pointLight) addLighting(id, lighting);
-            if(config.emissive) mesh.setHasEmissive(id, true);
+            if(config.emissive) {
+                mesh.setHasEmissive(id, true); 
+                mesh.setEmissiveIntensity(id, config.emissiveIntensity); 
+                mesh.setEmissiveColor(id, config.emissiveColor);
+            }
             collision.set(id, CollisionType::STATIC_COLLIDER);
         }
 

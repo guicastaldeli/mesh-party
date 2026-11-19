@@ -475,7 +475,7 @@ public:
      * 
      */
 
-    static const int dataCount = 4;
+    static const int dataCount = 6;
 
     inline static constexpr size_t kVertexStride = sizeof(Vertex) / sizeof(float);
     const std::vector<void*> getUniformBuffersMapped() const { return uniformBuffersMapped; } 
@@ -485,6 +485,10 @@ public:
 
     std::unordered_map<uint32_t, uint32_t> hasEmissiveIds;
     void setHasEmissive(uint32_t id, bool emissive);
+    std::unordered_map<uint32_t, float> emissiveIntensityMap;
+    void setEmissiveIntensity(uint32_t id, float intensity);
+    std::unordered_map<uint32_t, Vec3> emissiveColorMap;
+    void setEmissiveColor(uint32_t id, Vec3 color);
 
     void setData(gData* d);
     const gData* getData() const;
@@ -707,8 +711,8 @@ public:
      * Get Vertex Input State
      * *******/
     VkPipelineVertexInputStateCreateInfo getVertexInputState() const {
-        const std::size_t instAttr = 9;
-        const std::size_t combinedArray = 13;
+        const std::size_t instAttr = 11;
+        const std::size_t combinedArray = 15;
 
         static auto bindingDesc = Vertex::getBindingDescription();
         static auto attrDesc = Vertex::getAttributeDescriptions();
@@ -750,6 +754,16 @@ public:
         instanceAttr[8].location = 12;
         instanceAttr[8].format = VK_FORMAT_R32_UINT;
         instanceAttr[8].offset = sizeof(Mat4) + sizeof(uint32_t) * 3 + sizeof(Vec3);
+        // location 13: emissiveIntensity
+        instanceAttr[9].binding = 1;
+        instanceAttr[9].location = 13;
+        instanceAttr[9].format = VK_FORMAT_R32_SFLOAT;
+        instanceAttr[9].offset = sizeof(Mat4) + sizeof(uint32_t) * 3 + sizeof(Vec3) + sizeof(uint32_t);
+        // location 14: emissiveColor
+        instanceAttr[10].binding = 1;
+        instanceAttr[10].location = 14;
+        instanceAttr[10].format = VK_FORMAT_R32G32B32_SFLOAT;
+        instanceAttr[10].offset = sizeof(Mat4) + sizeof(uint32_t) * 3 + sizeof(Vec3);
 
         static std::array<VkVertexInputBindingDescription, 2> bindings = {
             bindingDesc,

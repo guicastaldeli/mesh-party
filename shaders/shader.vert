@@ -11,6 +11,8 @@ layout(location = 9) in uint inHasTexture;
 layout(location = 10) in uint inHasLit;
 layout(location = 11) in vec3 instanceColor;
 layout(location = 12) in uint inHasEmissive;
+layout(location = 13) in float inEmissiveIntensity;
+layout(location = 14) in vec3 inEmissiveColor;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragUv;
@@ -21,6 +23,8 @@ layout(location = 5) out vec3 fragNormal;
 layout(location = 6) flat out uint fragHasLit;
 layout(location = 7) out vec3 fragInstanceColor;
 layout(location = 8) flat out uint fragHasEmissive;
+layout(location = 9) out float fragEmissiveIntensity;
+layout(location = 10) out vec3 fragEmissiveColor;
 
 void main() {
     vec4 worldPos = instanceModel * vec4(inPosition, 1.0);
@@ -29,6 +33,8 @@ void main() {
     fragColor = inColor;
     fragInstanceColor = instanceColor;
     fragHasEmissive = inHasEmissive;
+    fragEmissiveIntensity = inEmissiveIntensity;
+    fragEmissiveColor = inEmissiveColor;
     fragUv = inUv;
     fragTexIndex = inTexIndex;
     fragHasTexture = inHasTexture;

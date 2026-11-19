@@ -12,6 +12,8 @@ layout(location = 5) in vec3 fragNormal;
 layout(location = 6) flat in uint fragHasLit;
 layout(location = 7) in vec3 fragInstanceColor;
 layout(location = 8) flat in uint fragHasEmissive;
+layout(location = 9) in float fragEmissiveIntensity;
+layout(location = 10) in vec3 fragEmissiveColor;
 
 layout(set = 1, binding = 0) uniform sampler2D tex[];
 
@@ -27,9 +29,7 @@ void main() {
         baseColor = vec4(fragColor * fragInstanceColor, 1.0);
     }
     if(fragHasEmissive != 0u) {
-        outColor = baseColor * vec4(fragInstanceColor, 1.0) * 2.0f;
-        // dyanmic emissive intensity later on
-        // also make the emissive color...
+        outColor = baseColor * vec4(fragEmissiveColor) * vec4(fragInstanceColor * fragEmissiveIntensity, 1.0);
         return;
     }
 
