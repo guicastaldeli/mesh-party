@@ -71,6 +71,19 @@ Mesh& Terrain::getMesh() const {
 }
 
 /**
+ * Build Light Index
+ */
+void Terrain::buildLightIndex() {
+    cellIndex.clear();
+    for(uint32_t i = 0; i < emissiveCells.size(); ++i) {
+        const Vec3& p = emissiveCells[i].position;
+        int cx = static_cast<int>(std::floor(p.x / CELL_SIZE));
+        int cz = static_cast<int>(std::floor(p.z / CELL_SIZE));
+        cellIndex[cellKey(cx, cz)].push_back(i);
+    }
+}
+
+/**
  * Set
  */
 // Set
@@ -165,6 +178,9 @@ void Terrain::generate(const ChunkParams& params) {
     spawnedIds.clear();
     collision.clearColliders();
 
+    emissiveCells.clear();
+    cellIndex.clear();
+
     set();
 
     Heightmap h(params.sizeX, params.sizeZ);
@@ -209,15 +225,18 @@ void Terrain::generate(const ChunkParams& params) {
                                                     config.color.x * t.x, 
                                                     config.color.y * t.y, 
                                                     config.color.z * t.z);
-            //if(config.pointLight) addLighting(id, lighting);
-            if(config.emissive) {
+            if(config.pointLight) {
+                //addLighting(id, lighting);
+                emissiveCells.push_back({ id, mesh.getPosition(id) });
+            }
+            /*if(config.emissive) {
                 mesh.setHasEmissive(id, true); 
                 mesh.setEmissiveIntensity(id, config.emissiveIntensity);
                 mesh.setEmissiveColor(id, 
                                     config.emissiveColor.x,
                                     config.emissiveColor.y,
                                     config.emissiveColor.z);
-            }
+            }*/
             collision.set(id, CollisionType::STATIC_COLLIDER);
         }
 
@@ -225,6 +244,7 @@ void Terrain::generate(const ChunkParams& params) {
     };
 
     setLayer(buildLayer);
+    buildLightIndex();
 
     collision.build();
     LightingManager::ShadowMap::markUsed();
@@ -277,6 +297,71 @@ void Terrain::update() {
     mesh.setTexture(id4, texId);*/
 
     Skybox::update();
+    updateLights(mesh.getCamera().getPosition());
+}
+
+// Update Lights
+void Terrain::updateLights(const Vec3& cameraPosition) {
+    if(emissiveCells.empty()) return;
+
+    auto* lightingManager = mesh.getLightingManager();
+    if(!lightingManager) return;
+
+    const auto& slots = lightingManager->getPointLight();
+    const uint32_t N = static_cast<uint32_t>(slots.size());
+    if(N == 0) return;
+
+    const float R = LIGHT_RADIUS;
+    const float R2 = R * R;
+
+    int ccx = static_cast<int>(std::floor(cameraPosition.x / CELL_SIZE));
+    int ccz = static_cast<int>(std::floor(cameraPosition.z / CELL_SIZE));
+
+    int reach = static_cast<int>(std::ceil(R / CELL_SIZE));
+    if(reach < 1) reach = 1;
+
+    struct Cand { float d2; uint32_t cellIdx; };
+    static std::vector<Cand> cands;
+    cands.clear();
+    cands.reserve(N * 4);
+
+    for(int dz = -reach; dz <= reach; ++dz) {
+        for(int dx = -reach; dx <= reach; ++dx) {
+            auto it = cellIndex.find(cellKey(ccx + dx, ccz + dz));
+            if(it == cellIndex.end()) continue;
+            for(uint32_t ci : it->second) {
+                const Vec3& p = emissiveCells[ci].position;
+                float ddx = p.x - cameraPosition.x;
+                float ddy = p.y - cameraPosition.y;
+                float ddz = p.z - cameraPosition.z;
+                float d2 = ddx*ddx + ddy*ddy + ddz*ddz;
+                if(d2 <= R2) cands.push_back({ d2, ci });
+            }
+        }
+    }
+
+    if(cands.size() > N) {
+        std::nth_element(cands.begin(), cands.begin() + N, cands.end(),
+                        [](const Cand& a, const Cand& b) { return a.d2 < b.d2; });
+        cands.resize(N);
+    }
+
+    const uint32_t active = static_cast<uint32_t>(cands.size());
+    for(uint32_t i = 0; i < N; ++i) {
+        PointLight* p = slots[i];
+        if(i < active) {
+            const auto& e = emissiveCells[cands[i].cellIdx];
+            p->setPosition(e.position.x, e.position.y, e.position.z);
+            p->setIntensity(LIGHT_INTENSITY);
+            p->setColor(1.0f, 0.3f, 0.5f);
+        } else {
+            p->setIntensity(0.0f);
+        }
+    }
+
+    if(auto* pointLight = lightingManager->getPointLightI()) {
+        pointLight->setActiveCount(active);
+    }
 }
 
 /**
@@ -295,6 +380,12 @@ void Terrain::render() {
  */
 void Terrain::init() {
     Skybox::set();
+    if(auto* lightingManager = mesh.getLightingManager()) {
+        if(auto* pointLight = lightingManager->getPointLightI()) {
+            pointLight->initPool();
+            pointLight->activePool(true);
+        }
+    }
 }
 
 /**

@@ -95,6 +95,39 @@ void PointLight::upload(UniformBuffer& ubo) const {
     ubo.lights.pointLights[i].intensity = getIntensity();
 }
 
+// Init Pool
+void PointLight::initPool(uint32_t count) {
+    while(lightingManager.getPointLight().size() < count) {
+        lightingManager.add(LightType::POINT);
+    }
+    for(auto* p : lightingManager.getPointLight()) {
+        p->setIntensity(0.0f);
+        p->setPosition(0.0f, 0.0f, 0.0f);
+        p->activePool(true);
+    }
+    
+    activePointLight = 0;
+}
+
+// Set Active Count
+void PointLight::setActiveCount(uint32_t n) {
+    activePointLight = n;
+}
+
+// Get Active Point Count
+uint32_t PointLight::getActiveCount() const {
+    return activePointLight;
+}
+
+// Use Pool
+void PointLight::activePool(bool use) {
+    usePool = use;
+}
+
+bool PointLight::isPoolActive() const {
+    return usePool;
+}
+
 /********************
  * Directional Light 
  * *******/
@@ -321,8 +354,14 @@ void LightingManager::upload(UniformBuffer& ubo) {
     }
 
     // Point Light
-    PointLight::uploadCount(ubo, (int)pointLight.size());
-    for(auto* p : pointLight) p->upload(ubo);
+    uint32_t n;
+    if(!pointLight.empty() && pointLight.front()->isPoolActive()) {
+        n = std::min<uint32_t>(pointLight.front()->getActiveCount(), static_cast<uint32_t>(pointLight.size()));
+    } else {
+        n = static_cast<uint32_t>(pointLight.size());
+    }
+    PointLight::uploadCount(ubo, static_cast<int>(n));
+    for(uint32_t i = 0; i < n; ++i) pointLight[i]->upload(ubo);
 
     // Directional Light
     DirectionalLight::uploadCount(ubo, (int)directionalLight.size());
@@ -369,5 +408,6 @@ void LightingManager::clear() {
     directionalLight.clear();
     ambientLight = nullptr;
     current = nullptr;
+    // later
     ShadowMap::clear(main.device);
 }

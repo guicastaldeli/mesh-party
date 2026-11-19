@@ -125,8 +125,12 @@ private:
     Vec3 position{ 0.0f, 0.0f, 0.0f };
     float radius = 1.0f;
 
+    bool usePool = false;
+    
 public:
     PointLight(LightingManager& lightingManager);
+
+    uint32_t activePointLight = 0;
     
     LightType getType() const override;
     uint32_t getId() const override;
@@ -137,6 +141,12 @@ public:
 
     void upload(UniformBuffer& ubo) const override;
     static void uploadCount(UniformBuffer& ubo, int count);
+
+    void activePool(bool use);
+    bool isPoolActive() const;
+    void initPool(uint32_t count = POINT_LIGHT_LIMIT);
+    void setActiveCount(uint32_t n);
+    uint32_t getActiveCount() const;
 };
 
 /********************
@@ -202,6 +212,10 @@ public:
 
     AmbientLight* getAmbientLight() const { return ambientLight; }
     const std::vector<PointLight*>& getPointLight() const { return pointLight; }
+    PointLight* getPointLightI() {
+        if(pointLight.empty()) add(LightType::POINT);
+        return pointLight.front();
+    }
     const std::vector<DirectionalLight*>& getDirectionalLight() const { return directionalLight; }
 
     /***************************

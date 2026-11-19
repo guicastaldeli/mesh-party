@@ -1,20 +1,23 @@
 #pragma once
 
-#include <vector>
-#include <string>
-#include <array>
-#include <functional>
+#include <.lib/enum/enum_reflect.hpp>
+#include <.lib/enum/enum_to_string.hpp>
+#include <.lib/enum/all_enums.hpp>
 #include <utils/tint.hpp>
-#include <random> 
 #include <tick.hpp>
 #include <mesh.hpp>
 #include <chunk.hpp>
 #include <collision.hpp>
 #include <utils/vec3.hpp>
 #include <utils/idgen.hpp>
-#include <.lib/enum/enum_reflect.hpp>
-#include <.lib/enum/enum_to_string.hpp>
-#include <.lib/enum/all_enums.hpp>
+#include <vector>
+#include <string>
+#include <array>
+#include <functional>
+#include <random> 
+#include <unordered_map>
+#include <cstdint>
+#include <cmath>
 
 /*************************** 
  * 
@@ -93,6 +96,31 @@ struct TerrainLayerConfig {
 
 class Terrain {
 private:
+    /*************
+     * 
+     * Emissive Cell
+     * 
+     */
+    struct EmissiveCell {
+        uint32_t id;
+        Vec3 position;
+    };
+
+    std::vector<EmissiveCell> emissiveCells;
+    std::unordered_map<int64_t, std::vector<uint32_t>> cellIndex;
+    
+    static constexpr float CELL_SIZE = 8.0f;
+    static constexpr float LIGHT_RADIUS = POINT_LIGHT_LIMIT;
+    static constexpr float LIGHT_INTENSITY = 5.0f;
+
+    static int64_t cellKey(int cx, int cz) {
+        int v = 32;
+        return (int64_t(cx) << v) ^ int64_t(uint32_t(cz));
+    }
+    /**
+     * 
+     */
+    
     Tick& tick;
     Mesh& mesh;
     CollisionManager& collision;
@@ -112,6 +140,11 @@ private:
     
     std::mt19937 rng{ std::random_device{}() };
     Tint::Config tint;
+
+    void buildLightIndex();
+    void updateLights(const Vec3& cameraPosition);
+    void setLightRange(float r);
+    void setLightIntensity(float i);
 
 public:
     Terrain(Tick& tick, Mesh& mesh, CollisionManager& collision);
