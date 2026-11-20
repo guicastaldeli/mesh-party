@@ -11,6 +11,7 @@
 #include <vulkan/vulkan.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <stdexcept>
 #include <map>
@@ -185,6 +186,7 @@ private:
     std::unordered_map<uint32_t, Transform>     transforms;
     std::unordered_map<uint32_t, std::string>   idToType;
     std::unordered_map<uint32_t, uint32_t>      textureIds;
+    std::unordered_set<uint32_t>                hiddenIds;
 
     VkDevice device;
     VkCommandPool commandPool;
@@ -542,6 +544,11 @@ public:
     void create();
     void render(bool shadowPass = false);
     void renderShadowPass(VkCommandBuffer cmd);
+
+    void show(uint32_t id);
+
+    void hide(uint32_t id);
+    bool isHidden(uint32_t id) const;
 
     void cleanup();
     void clearInstances(const std::vector<uint32_t>& ids);

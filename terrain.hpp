@@ -89,6 +89,7 @@ struct TerrainLayerConfig {
     bool emissive;
     float emissiveIntensity;
     Vec3 emissiveColor;
+    bool pooled;
 };
 /**
  * 
@@ -96,6 +97,27 @@ struct TerrainLayerConfig {
 
 class Terrain {
 private:
+    /***************
+     * 
+     * Mesh Pool
+     * 
+     ******/
+    struct ChunkCell {
+        Vec3 position;
+        TerrainLayerConfig config;
+    };
+
+    static constexpr size_t MAX_ACTIVE_MESHES = 1024;
+    static constexpr float MESH_VIEW_DISTANCE = 40.0f;
+
+    std::vector<uint32_t> meshPool;
+    std::unordered_map<int64_t, ChunkCell> chunkCells;
+    std::unordered_map<uint32_t, int64_t> meshToCell;
+    std::unordered_set<int64_t> activeCells;
+    /**
+     * 
+     */
+    
     /*************
      * 
      * Emissive Cell
@@ -131,6 +153,9 @@ private:
     BoundaryCollider boundary{ 0.0f };
     float boundaryRadius = 30.0f;
 
+    StaticCollider* layerCollider = nullptr;
+    StaticCollider* poolCollider = nullptr;
+
     inline static constexpr const char* MESH_TYPE = "cube";
     const char* ids = "terrain";
     std::vector<uint32_t> spawnedIds;
@@ -146,6 +171,11 @@ private:
     void setLightRange(float r);
     void setLightIntensity(float i);
 
+    void updateMeshPool(const Vec3& cameraPosition);
+    void setMesh(uint32_t id, const Vec3& position, const TerrainLayerConfig& config);
+
+    StaticCollider* setCollider();
+    
 public:
     Terrain(Tick& tick, Mesh& mesh, CollisionManager& collision);
     ~Terrain();

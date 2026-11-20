@@ -152,10 +152,17 @@ public:
 
     StaticCollider(const BBox& bbox, std::string id, std::string type = "") :
                     bbox(bbox), localBox(bbox), id(std::move(id)), type(std::move(type)), hasBBox(true) {};
+    StaticCollider() :
+                bbox(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f),
+                localBox(-0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f),
+                id(""), type(""), hasBBox(true) {};
 
     std::vector<Instance> instances;
     std::unordered_map<CellKey, std::vector<uint32_t>, CellHash> grid;
     float cellSize = 1.0f;
+    mutable bool used = false;
+
+    void removeCollider(uint32_t id);
 
     BBox getBBox() const override;
     std::string getId() const override;
@@ -258,6 +265,8 @@ public:
     void resolveCollision(Collider& collider, std::vector<CollisionResult>& collisions);
     void resolveCollision(RigidBody& rigidBody, const BBox& bbox, std::vector<CollisionResult>& collisions);
 
+    void remove(uint32_t id);
+    
     std::function<void(RigidBody&, bool /* pushedUp */)> onResolved;
 
     void update();

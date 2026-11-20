@@ -115,7 +115,8 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
             .color = Vec3(1, 1, 1),
             .emissive = false,
             .emissiveIntensity = 0.0f,
-            .emissiveColor = Vec3(1, 1, 1)
+            .emissiveColor = Vec3(1, 1, 1),
+            .pooled = false
         };
 
         float l1 = buildLayer(l1c, origin.y);
@@ -131,12 +132,41 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
             .color = Vec3(1, 1, 1),
             .emissive = true,
             .emissiveIntensity = 0.8f,
-            .emissiveColor = Vec3(0.122, 0.380, 0.722)
+            .emissiveColor = Vec3(0.122, 0.380, 0.722),
+            .pooled = true
         };
 
         float l2 = l1;  
         buildLayer(l2c, l2);
     /**/
+}
+
+// Set Mesh
+void Terrain::setMesh(uint32_t id, const Vec3& position, const TerrainLayerConfig& config) {
+    std::string meshName;
+
+    std::uniform_int_distribution<size_t> pick(0, config.meshTypes.size() - 1);
+    TerrainMeshType rt = config.meshTypes[pick(rng)];
+    
+    meshName = enumToStringLower(rt);
+    mesh.setPosition(id, position.x, position.y, position.z);
+    mesh.show(id);
+    mesh.load(id, meshName);
+    if(config.hasTex) mesh.setTexture(id, config.texId);
+    Vec3 t = Tint::key(tint, id);  mesh.setColor(id, config.color.x * t.x, config.color.y * t.y, config.color.z * t.z);
+    /*mesh.setHasLit(id, config.lit);
+    mesh.setHasEmissive(id, config.emissive);
+    if(config.emissive) {
+        mesh.setEmissiveIntensity(id, config.emissiveIntensity);
+        mesh.setEmissiveColor(id, config.emissiveColor.x, config.emissiveColor.y, config.emissiveColor.z);
+    }*/
+}
+
+// Set Collider
+StaticCollider* Terrain::setCollider() {
+    auto* sc = new StaticCollider();
+    collision.addCollider(sc);
+    return sc;
 }
 
 // Set Boundary
@@ -180,6 +210,9 @@ void Terrain::generate(const ChunkParams& params) {
 
     emissiveCells.clear();
     cellIndex.clear();
+    
+    if(!layerCollider) layerCollider = setCollider();
+    if(!poolCollider) poolCollider = setCollider();
 
     set();
 
@@ -194,62 +227,45 @@ void Terrain::generate(const ChunkParams& params) {
 
         std::uniform_int_distribution<size_t> pick(0, config.meshTypes.size() - 1);
 
-        LightingManager* lighting = mesh.getLightingManager();
-        //lighting->clear();
-
         float layerTop = 0.0f;
         for(int z = 0; z < data.sz; ++z)
         for(int y = 0; y < data.sy; ++y)
         for(int x = 0; x < data.sx; ++x) {
             if(data.at(x, y, z) == 0) continue;
 
-            TerrainMeshType rt = config.meshTypes[pick(rng)];
-            std::string meshName = enumToStringLower(rt);
+            std::string meshName = enumToStringLower(config.meshTypes[0]);
 
             float height = mesh.getMeshHeight(meshName);
             float top = yoffset + float(y) * height + height;
             layerTop = std::max(layerTop, top);
 
+            Vec3 pos = Vec3(origin.x + float(x), yoffset + float(y) * height, origin.z + float(z));
             const uint32_t id = static_cast<uint32_t>(IdGen::next(ids));
             spawnedIds.push_back(id);
-
-            mesh.setPosition(id,
-                        origin.x + float(x),
-                        yoffset + float(y) * height,
-                        origin.z + float(z));
-            mesh.load(id, meshName);
-
-            if(config.hasTex) mesh.setTexture(id, texId);
-            mesh.setHasLit(id, config.lit);
-            Vec3 t = Tint::key(tint, id); mesh.setColor(id, 
-                                                    config.color.x * t.x, 
-                                                    config.color.y * t.y, 
-                                                    config.color.z * t.z);
-            if(config.pointLight) {
-                //addLighting(id, lighting);
-                emissiveCells.push_back({ id, mesh.getPosition(id) });
+            
+            if(!config.pooled) {
+                setMesh(id, pos, config);
+                layerCollider->addInstance(id, pos);
             }
-            /*if(config.emissive) {
-                mesh.setHasEmissive(id, true); 
-                mesh.setEmissiveIntensity(id, config.emissiveIntensity);
-                mesh.setEmissiveColor(id, 
-                                    config.emissiveColor.x,
-                                    config.emissiveColor.y,
-                                    config.emissiveColor.z);
-            }*/
-            collision.set(id, CollisionType::STATIC_COLLIDER);
+            else if(meshPool.size() < MAX_ACTIVE_MESHES) {
+                meshPool.push_back(id);
+                setMesh(id, pos, config);
+                mesh.hide(id);
+            }
+
+            int64_t key = cellKey(x, z);
+            chunkCells[key] = { pos, config };
         }
 
         return layerTop;
     };
 
     setLayer(buildLayer);
-    buildLightIndex();
 
-    collision.build();
+    buildLightIndex();
     LightingManager::ShadowMap::markUsed();
 
-    setBoundary(params);
+    //setBoundary(params);
 }
 
 /**
@@ -296,8 +312,10 @@ void Terrain::update() {
     mesh.load(id4, "cube");
     mesh.setTexture(id4, texId);*/
 
+    Vec3 cameraPosition = mesh.getCamera().getPosition();
     Skybox::update();
-    updateLights(mesh.getCamera().getPosition());
+    updateMeshPool(cameraPosition);
+    updateLights(cameraPosition);
 }
 
 // Update Lights
@@ -364,6 +382,61 @@ void Terrain::updateLights(const Vec3& cameraPosition) {
     }
 }
 
+// Update Mesh Pool
+void Terrain::updateMeshPool(const Vec3& cameraPosition) {
+    if(meshPool.empty() || chunkCells.empty()) return;
+
+    const float R2 = MESH_VIEW_DISTANCE * MESH_VIEW_DISTANCE;
+
+    for(uint32_t id : meshPool) {
+        auto it = meshToCell.find(id);
+        if(it != meshToCell.end()) {
+            int64_t key = it->second;
+            Vec3 pos = chunkCells[key].position;
+            float dx = pos.x - cameraPosition.x;
+            float dz = pos.z - cameraPosition.z;
+            if(dx*dx + dz*dz > R2) {
+                mesh.hide(id);
+                poolCollider->removeCollider(id);
+                activeCells.erase(key);
+                meshToCell.erase(id);
+            }
+        }
+    }
+
+    std::vector<int64_t> cellsNeedingMesh;
+    for(const auto& [key, cell] : chunkCells) {
+        if(activeCells.count(key) > 0) continue;
+        float dx = cell.position.x - cameraPosition.x;
+        float dz = cell.position.z - cameraPosition.z;
+        if(dx*dx + dz*dz <= R2) cellsNeedingMesh.push_back(key);
+    }
+    if(!cellsNeedingMesh.empty()) {
+        std::shuffle(cellsNeedingMesh.begin(), cellsNeedingMesh.end(), rng);
+
+        for(uint32_t id : meshPool) {
+            if(meshToCell.count(id) > 0) continue;
+            if(cellsNeedingMesh.empty()) break;
+
+            int64_t key = cellsNeedingMesh.back();
+            cellsNeedingMesh.pop_back();
+
+            const auto& cell = chunkCells[key];
+            setMesh(id, cell.position, cell.config);
+            poolCollider->removeCollider(id);
+            poolCollider->addInstance(id, cell.position);
+            activeCells.insert(key);
+            meshToCell[id] = key;
+        }
+    }
+
+    emissiveCells.clear();
+    for(const auto& [id, key] : meshToCell) {
+        emissiveCells.push_back({ id, chunkCells[key].position });
+    }
+    buildLightIndex();
+}
+
 /**
  * 
  * Render
@@ -392,5 +465,5 @@ void Terrain::init() {
  * Cleanup
  */
 void Terrain::cleanup() {
-    
+    if(poolCollider) poolCollider = nullptr;
 }

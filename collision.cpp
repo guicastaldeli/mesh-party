@@ -61,6 +61,7 @@ BBox StaticCollider::worldBox(const Instance& inst) const {
 // Add Instance
 void StaticCollider::addInstance(uint32_t instId, const Vec3& worldPos) {
     instances.push_back({ instId, worldPos });
+    used = true;
 }
 
 // Clear Instances
@@ -81,6 +82,7 @@ void StaticCollider::buildGrid() {
         for(int z = lo.z; z <= hi.z; ++z)
             grid[{x,y,z}].push_back(i);
     }
+    used = false;
 }
 
 // Calc Collision
@@ -120,6 +122,8 @@ CollisionResult StaticCollider::calcCollision(const BBox& a, const BBox& b, cons
 void StaticCollider::checkCollision(const BBox& other, std::vector<CollisionResult>& out) const {
     if(instances.empty()) return;
 
+    if(used) const_cast<StaticCollider*>(this)->buildGrid();
+
     CellKey lo = cellOf(other.minX, other.minY, other.minZ, cellSize);
     CellKey hi = cellOf(other.maxX, other.maxY, other.maxZ, cellSize);
 
@@ -141,6 +145,17 @@ void StaticCollider::checkCollision(const BBox& other, std::vector<CollisionResu
         if(!other.intersects(wb)) continue;
         out.push_back(calcCollision(other, wb, inst, idx));
     }
+}
+
+// Remove Collider
+void StaticCollider::removeCollider(uint32_t id) {
+    size_t b = instances.size();
+    instances.erase(
+        std::remove_if(instances.begin(), instances.end(),
+                        [id](const Instance& i) { return i.id == id; }),
+                        instances.end()
+    );
+    if(instances.size() != b) used = true;
 }
 
 /*******************
@@ -411,6 +426,7 @@ void CollisionManager::set(uint32_t id, CollisionType type) {
                 colliderIdSet.insert(sid);
             }
 
+            sc->removeCollider(id);
             sc->addInstance(id, mesh.getPosition(id));
             break;
         }
@@ -640,6 +656,18 @@ void CollisionManager::update() {
             resolveCollision(*rigidBody, bounds, results);
         }
     }
+}
+
+/**
+ * Remove
+ */
+void CollisionManager::remove(uint32_t id) {
+    for(auto& sc : ownedColliders) {
+        if(auto* s = dynamic_cast<StaticCollider*>(sc.get())) {
+            s->removeCollider(id);
+        }
+    }
+    build();
 }
 
 /**

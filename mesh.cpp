@@ -316,6 +316,52 @@ void Mesh::setInstanceBuffer(VkDeviceSize size) {
 }
 
 /**
+ * Show
+ */
+void Mesh::show(uint32_t id) {
+    if(hiddenIds.erase(id) == 0) return;
+
+    auto it = transforms.find(id);
+    if(it == transforms.end()) return;
+
+    bool alreadyPending = false;
+    for(auto& e : pendingInstances) {
+        if(e.id == id) {
+            alreadyPending = true;
+            break;
+        }
+    }
+    if(!alreadyPending) {
+        InstanceEntry entry{};
+        entry.id = id;
+        entry.model = it->second.GetModelMatrix();
+        entry.type = idToType[id];
+        pendingInstances.push_back(entry);
+    }
+}
+
+/**
+ * Hide
+ */
+void Mesh::hide(uint32_t id) {
+    if(hiddenIds.count(id) > 0) return;
+    hiddenIds.insert(id);
+
+    pendingInstances.erase(
+        std::remove_if(pendingInstances.begin(), pendingInstances.end(),
+                        [id](const InstanceEntry& e) { return e.id == id; }),
+                        pendingInstances.end()
+    );
+}
+
+/**
+ * Is Hidden
+ */
+bool Mesh::isHidden(uint32_t id) const {
+    return hiddenIds.count(id) > 0;
+}
+
+/**
  * 
  * Load
  * 
@@ -351,7 +397,8 @@ void Mesh::load(uint32_t id, const std::string& type) {
         entry.id = id;
         entry.model = model;
         entry.type = type;
-        pendingInstances.push_back(entry);
+        
+        if(hiddenIds.count(id) == 0) pendingInstances.push_back(entry);
     }
 }
 
@@ -543,6 +590,7 @@ void Mesh::clearInstances(const std::vector<uint32_t>& ids) {
         emissiveIntensityMap.erase(id);
         emissiveColorMap.erase(id);
         textureIds.erase(id);
+        hiddenIds.erase(id);
     }
 
     pendingInstances.erase(
