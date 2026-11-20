@@ -71,19 +71,6 @@ Mesh& Terrain::getMesh() const {
 }
 
 /**
- * Build Light Index
- */
-void Terrain::buildLightIndex() {
-    cellIndex.clear();
-    for(uint32_t i = 0; i < emissiveCells.size(); ++i) {
-        const Vec3& p = emissiveCells[i].position;
-        int cx = static_cast<int>(std::floor(p.x / CELL_SIZE));
-        int cz = static_cast<int>(std::floor(p.z / CELL_SIZE));
-        cellIndex[cellKey(cx, cz)].push_back(i);
-    }
-}
-
-/**
  * Set
  */
 // Set
@@ -132,7 +119,7 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
             .color = Vec3(1, 1, 1),
             .emissive = true,
             .emissiveIntensity = 0.8f,
-            .emissiveColor = Vec3(0.122, 0.380, 0.722),
+            .emissiveColor = Vec3(1.0, 1.0, 1.0),
             .pooled = true
         };
 
@@ -183,18 +170,6 @@ void Terrain::setBoundary(const ChunkParams& params) {
     float cz = origin.z + (float(params.sizeZ * 0.5f));
     
     boundary.update({cx, 0.0f, cz}, boundaryRadius);
-}
-
-/**
- * Add Lighting
- */
-void Terrain::addLighting(const uint32_t id, LightingManager* lighting) {
-    Vec3 pos = mesh.getPosition(id);
-
-    lighting->add(LightType::POINT)
-        .setColor("#1c1fd2")
-        .setPosition(pos.x, pos.y, pos.z)
-        .setIntensity(5.0f);
 }
 
 /**
@@ -262,7 +237,6 @@ void Terrain::generate(const ChunkParams& params) {
 
     setLayer(buildLayer);
 
-    buildLightIndex();
     LightingManager::ShadowMap::markUsed();
 
     //setBoundary(params);
@@ -315,13 +289,10 @@ void Terrain::update() {
     Vec3 cameraPosition = mesh.getCamera().getPosition();
     Skybox::update();
     updateMeshPool(cameraPosition);
-    updateLights(cameraPosition);
 }
 
 // Update Lights
 void Terrain::updateLights(const Vec3& cameraPosition) {
-    if(emissiveCells.empty()) return;
-
     auto* lightingManager = mesh.getLightingManager();
     if(!lightingManager) return;
 
@@ -329,32 +300,16 @@ void Terrain::updateLights(const Vec3& cameraPosition) {
     const uint32_t N = static_cast<uint32_t>(slots.size());
     if(N == 0) return;
 
-    const float R = LIGHT_RADIUS;
-    const float R2 = R * R;
+    struct Cand { float d2; Vec3 pos; Vec3 color; };
+    std::vector<Cand> cands;
 
-    int ccx = static_cast<int>(std::floor(cameraPosition.x / CELL_SIZE));
-    int ccz = static_cast<int>(std::floor(cameraPosition.z / CELL_SIZE));
-
-    int reach = static_cast<int>(std::ceil(R / CELL_SIZE));
-    if(reach < 1) reach = 1;
-
-    struct Cand { float d2; uint32_t cellIdx; };
-    static std::vector<Cand> cands;
-    cands.clear();
-    cands.reserve(N * 4);
-
-    for(int dz = -reach; dz <= reach; ++dz) {
-        for(int dx = -reach; dx <= reach; ++dx) {
-            auto it = cellIndex.find(cellKey(ccx + dx, ccz + dz));
-            if(it == cellIndex.end()) continue;
-            for(uint32_t ci : it->second) {
-                const Vec3& p = emissiveCells[ci].position;
-                float ddx = p.x - cameraPosition.x;
-                float ddy = p.y - cameraPosition.y;
-                float ddz = p.z - cameraPosition.z;
-                float d2 = ddx*ddx + ddy*ddy + ddz*ddz;
-                if(d2 <= R2) cands.push_back({ d2, ci });
-            }
+    for(const auto& [id, cellKey] : meshToCell) {
+        const auto& cell = chunkCells[cellKey];
+        if(cell.config.emissive) {
+            float dx = cell.position.x - cameraPosition.x;
+            float dy = cell.position.y - cameraPosition.y;
+            float dz = cell.position.z - cameraPosition.z;
+            cands.push_back({ dx*dx + dy*dy + dz*dz, cell.position, cell.config.emissiveColor });
         }
     }
 
@@ -364,14 +319,13 @@ void Terrain::updateLights(const Vec3& cameraPosition) {
         cands.resize(N);
     }
 
-    const uint32_t active = static_cast<uint32_t>(cands.size());
+    uint32_t active = static_cast<uint32_t>(cands.size());
     for(uint32_t i = 0; i < N; ++i) {
         PointLight* p = slots[i];
         if(i < active) {
-            const auto& e = emissiveCells[cands[i].cellIdx];
-            p->setPosition(e.position.x, e.position.y, e.position.z);
+            p->setPosition(cands[i].pos.x, cands[i].pos.y, cands[i].pos.z);
             p->setIntensity(LIGHT_INTENSITY);
-            p->setColor(1.0f, 0.3f, 0.5f);
+            p->setColor(cands[i].color.x, cands[i].color.y, cands[i].color.z);
         } else {
             p->setIntensity(0.0f);
         }
@@ -382,20 +336,39 @@ void Terrain::updateLights(const Vec3& cameraPosition) {
     }
 }
 
+
 // Update Mesh Pool
 void Terrain::updateMeshPool(const Vec3& cameraPosition) {
     if(meshPool.empty() || chunkCells.empty()) return;
 
     const float R2 = MESH_VIEW_DISTANCE * MESH_VIEW_DISTANCE;
 
+    std::vector<int64_t> inRangeCells;
+    for(const auto& [key, cell] : chunkCells) {
+        float dx = cell.position.x - cameraPosition.x;
+        float dz = cell.position.z - cameraPosition.z;
+        if(dx*dx + dz*dz <= R2) inRangeCells.push_back(key);
+    }
+    if(inRangeCells.empty()) return;
+    std::sort(inRangeCells.begin(), inRangeCells.end(), [&](int64_t a, int64_t b) {
+        const Vec3& pa = chunkCells[a].position;
+        const Vec3& pb = chunkCells[b].position;
+        float da = (pa.x - cameraPosition.x)*(pa.x - cameraPosition.x) +
+                   (pa.z - cameraPosition.z)*(pa.z - cameraPosition.z);
+        float db = (pb.x - cameraPosition.x)*(pb.x - cameraPosition.x) +
+                   (pb.z - cameraPosition.z)*(pb.z - cameraPosition.z);
+        return da < db;
+    });
+
+    size_t maxNeeded = std::min(inRangeCells.size(), meshPool.size());
+    std::unordered_set<int64_t> dactive;
+    for(size_t i = 0; i < maxNeeded; ++i) dactive.insert(inRangeCells[i]);
+    
     for(uint32_t id : meshPool) {
         auto it = meshToCell.find(id);
         if(it != meshToCell.end()) {
             int64_t key = it->second;
-            Vec3 pos = chunkCells[key].position;
-            float dx = pos.x - cameraPosition.x;
-            float dz = pos.z - cameraPosition.z;
-            if(dx*dx + dz*dz > R2) {
+            if(dactive.count(key) == 0) {
                 mesh.hide(id);
                 poolCollider->removeCollider(id);
                 activeCells.erase(key);
@@ -404,37 +377,26 @@ void Terrain::updateMeshPool(const Vec3& cameraPosition) {
         }
     }
 
-    std::vector<int64_t> cellsNeedingMesh;
-    for(const auto& [key, cell] : chunkCells) {
+    size_t cellIdx = 0;
+    for(uint32_t id : meshPool) {
+        if(meshToCell.count(id) > 0) continue;
+        if(cellIdx >= inRangeCells.size()) break;
+
+        int64_t key = inRangeCells[cellIdx++];
+
         if(activeCells.count(key) > 0) continue;
-        float dx = cell.position.x - cameraPosition.x;
-        float dz = cell.position.z - cameraPosition.z;
-        if(dx*dx + dz*dz <= R2) cellsNeedingMesh.push_back(key);
-    }
-    if(!cellsNeedingMesh.empty()) {
-        std::shuffle(cellsNeedingMesh.begin(), cellsNeedingMesh.end(), rng);
 
-        for(uint32_t id : meshPool) {
-            if(meshToCell.count(id) > 0) continue;
-            if(cellsNeedingMesh.empty()) break;
-
-            int64_t key = cellsNeedingMesh.back();
-            cellsNeedingMesh.pop_back();
-
-            const auto& cell = chunkCells[key];
-            setMesh(id, cell.position, cell.config);
-            poolCollider->removeCollider(id);
-            poolCollider->addInstance(id, cell.position);
-            activeCells.insert(key);
-            meshToCell[id] = key;
-        }
+        const auto& cell = chunkCells[key];
+        setMesh(id, cell.position, cell.config);
+        poolCollider->removeCollider(id);
+        poolCollider->addInstance(id, cell.position);
+        activeCells.insert(key);
+        meshToCell[id] = key;
     }
 
     emissiveCells.clear();
-    for(const auto& [id, key] : meshToCell) {
-        emissiveCells.push_back({ id, chunkCells[key].position });
-    }
-    buildLightIndex();
+    for(const auto& [id, key] : meshToCell) emissiveCells.push_back({ id, chunkCells[key].position });
+    updateLights(cameraPosition);
 }
 
 /**

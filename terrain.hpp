@@ -107,8 +107,8 @@ private:
         TerrainLayerConfig config;
     };
 
-    static constexpr size_t MAX_ACTIVE_MESHES = 1024;
-    static constexpr float MESH_VIEW_DISTANCE = 40.0f;
+    static constexpr size_t MAX_ACTIVE_MESHES = 4096;
+    static constexpr float MESH_VIEW_DISTANCE = 30.0f;
 
     std::vector<uint32_t> meshPool;
     std::unordered_map<int64_t, ChunkCell> chunkCells;
@@ -137,7 +137,8 @@ private:
 
     static int64_t cellKey(int cx, int cz) {
         int v = 32;
-        return (int64_t(cx) << v) ^ int64_t(uint32_t(cz));
+        return (int64_t(cx) << v) ^ 
+                int64_t(uint32_t(cz));
     }
     /**
      * 
@@ -166,7 +167,6 @@ private:
     std::mt19937 rng{ std::random_device{}() };
     Tint::Config tint;
 
-    void buildLightIndex();
     void updateLights(const Vec3& cameraPosition);
     void setLightRange(float r);
     void setLightIntensity(float i);
