@@ -18,6 +18,8 @@
 #include <unordered_map>
 #include <cstdint>
 #include <cmath>
+#include <math.h>
+#include <utils/random_color.hpp>
 
 /*************************** 
  * 
@@ -112,7 +114,6 @@ private:
 
     std::vector<uint32_t> meshPool;
     std::unordered_map<int64_t, ChunkCell> chunkCells;
-    std::unordered_map<uint32_t, int64_t> meshToCell;
     std::unordered_set<int64_t> activeCells;
     /**
      * 
@@ -143,6 +144,21 @@ private:
     /**
      * 
      */
+
+    /*****
+     * 
+     * Mesh Instance
+     * 
+     *******/
+    struct MeshInstance {
+        int64_t cellKey;
+        Vec3 color;
+    };
+
+    std::unordered_map<uint32_t, MeshInstance> meshToCell;
+    /**
+     * 
+     */
     
     Tick& tick;
     Mesh& mesh;
@@ -167,14 +183,24 @@ private:
     std::mt19937 rng{ std::random_device{}() };
     Tint::Config tint;
 
+    float updateTime = 0.0f;
+    float currentUpdate = 1.0f;
+    static constexpr float UPDATE_SPEED = 2.0f;
+    static constexpr float UPDATE_MIN = 0.0f;
+    static constexpr float UPDATE_MAX = 0.4f;
+
+    float computeUpdate();
+
     void updateLights(const Vec3& cameraPosition);
     void setLightRange(float r);
     void setLightIntensity(float i);
 
     void updateMeshPool(const Vec3& cameraPosition);
-    void setMesh(uint32_t id, const Vec3& position, const TerrainLayerConfig& config);
+    void setMesh(uint32_t id, const Vec3& position, const Vec3& meshColor, const TerrainLayerConfig& config);
 
     StaticCollider* setCollider();
+
+    Vec3 nextColor() { return RandomColor::A(rng); }
     
 public:
     Terrain(Tick& tick, Mesh& mesh, CollisionManager& collision);
@@ -185,8 +211,6 @@ public:
     void set();
     void setLayer(std::function<float(const TerrainLayerConfig&, float)> buildLayer);
     void setBoundary(const ChunkParams& params);
-
-    void addLighting(const uint32_t id, LightingManager* lighting);
 
     void generate(const ChunkParams& params);
 

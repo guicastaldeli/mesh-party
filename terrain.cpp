@@ -129,7 +129,7 @@ void Terrain::setLayer(std::function<float(const TerrainLayerConfig&, float)> bu
 }
 
 // Set Mesh
-void Terrain::setMesh(uint32_t id, const Vec3& position, const TerrainLayerConfig& config) {
+void Terrain::setMesh(uint32_t id, const Vec3& position, const Vec3& meshColor, const TerrainLayerConfig& config) {
     std::string meshName;
 
     std::uniform_int_distribution<size_t> pick(0, config.meshTypes.size() - 1);
@@ -140,13 +140,16 @@ void Terrain::setMesh(uint32_t id, const Vec3& position, const TerrainLayerConfi
     mesh.show(id);
     mesh.load(id, meshName);
     if(config.hasTex) mesh.setTexture(id, config.texId);
-    Vec3 t = Tint::key(tint, id);  mesh.setColor(id, config.color.x * t.x, config.color.y * t.y, config.color.z * t.z);
-    /*mesh.setHasLit(id, config.lit);
+    Vec3 t = Tint::key(tint, id);  mesh.setColor(id,
+                                                meshColor.x * t.x * config.color.x,
+                                                meshColor.y * t.y * config.color.y,
+                                                meshColor.z * t.z * config.color.z);
+    mesh.setHasLit(id, config.lit);
     mesh.setHasEmissive(id, config.emissive);
     if(config.emissive) {
-        mesh.setEmissiveIntensity(id, config.emissiveIntensity);
-        mesh.setEmissiveColor(id, config.emissiveColor.x, config.emissiveColor.y, config.emissiveColor.z);
-    }*/
+        mesh.setEmissiveIntensity(id, config.emissiveIntensity * currentUpdate);
+        mesh.setEmissiveColor(id, meshColor.x, meshColor.y, meshColor.z);
+    }
 }
 
 // Set Collider
@@ -219,12 +222,12 @@ void Terrain::generate(const ChunkParams& params) {
             spawnedIds.push_back(id);
             
             if(!config.pooled) {
-                setMesh(id, pos, config);
+                setMesh(id, pos, Vec3(1,1,1), config);
                 layerCollider->addInstance(id, pos);
             }
             else if(meshPool.size() < MAX_ACTIVE_MESHES) {
                 meshPool.push_back(id);
-                setMesh(id, pos, config);
+                setMesh(id, pos, nextColor(), config);
                 mesh.hide(id);
             }
 
@@ -245,6 +248,18 @@ void Terrain::generate(const ChunkParams& params) {
 /**
  * Update
  */
+// Compite Update
+float Terrain::computeUpdate() {
+    updateTime += tick.GetDeltaTime() * UPDATE_SPEED;
+    float v1 = 6.28318f;
+    if(updateTime > v1) updateTime -= v1;
+
+    float v2 = 0.5f;
+    float s = v2 + v2 * std::sin(updateTime);
+
+    return UPDATE_MIN + (UPDATE_MAX - UPDATE_MIN) * s;
+}
+
 // Update
 void Terrain::update() {
     //if(tick.ShouldTick()) std::cout << "Draw calls: " << mesh.getDrawCalls() << std::endl;
@@ -289,6 +304,7 @@ void Terrain::update() {
     Vec3 cameraPosition = mesh.getCamera().getPosition();
     Skybox::update();
     updateMeshPool(cameraPosition);
+    updateLights(cameraPosition);
 }
 
 // Update Lights
@@ -303,13 +319,13 @@ void Terrain::updateLights(const Vec3& cameraPosition) {
     struct Cand { float d2; Vec3 pos; Vec3 color; };
     std::vector<Cand> cands;
 
-    for(const auto& [id, cellKey] : meshToCell) {
-        const auto& cell = chunkCells[cellKey];
+    for(const auto& [id, inst] : meshToCell) {
+        const auto& cell = chunkCells[inst.cellKey];
         if(cell.config.emissive) {
             float dx = cell.position.x - cameraPosition.x;
             float dy = cell.position.y - cameraPosition.y;
             float dz = cell.position.z - cameraPosition.z;
-            cands.push_back({ dx*dx + dy*dy + dz*dz, cell.position, cell.config.emissiveColor });
+            cands.push_back({ dx*dx + dy*dy + dz*dz, cell.position, inst.color });
         }
     }
 
@@ -324,7 +340,7 @@ void Terrain::updateLights(const Vec3& cameraPosition) {
         PointLight* p = slots[i];
         if(i < active) {
             p->setPosition(cands[i].pos.x, cands[i].pos.y, cands[i].pos.z);
-            p->setIntensity(LIGHT_INTENSITY);
+            p->setIntensity(LIGHT_INTENSITY * currentUpdate);
             p->setColor(cands[i].color.x, cands[i].color.y, cands[i].color.z);
         } else {
             p->setIntensity(0.0f);
@@ -340,6 +356,15 @@ void Terrain::updateLights(const Vec3& cameraPosition) {
 // Update Mesh Pool
 void Terrain::updateMeshPool(const Vec3& cameraPosition) {
     if(meshPool.empty() || chunkCells.empty()) return;
+
+    currentUpdate = computeUpdate();
+
+    for(const auto& [id, inst] : meshToCell) {
+        const auto& cell = chunkCells[inst.cellKey];
+        if(cell.config.emissive) {
+            mesh.setEmissiveIntensity(id, cell.config.emissiveIntensity * currentUpdate);
+        }
+    }
 
     const float R2 = MESH_VIEW_DISTANCE * MESH_VIEW_DISTANCE;
 
@@ -367,7 +392,7 @@ void Terrain::updateMeshPool(const Vec3& cameraPosition) {
     for(uint32_t id : meshPool) {
         auto it = meshToCell.find(id);
         if(it != meshToCell.end()) {
-            int64_t key = it->second;
+            int64_t key = it->second.cellKey;
             if(dactive.count(key) == 0) {
                 mesh.hide(id);
                 poolCollider->removeCollider(id);
@@ -387,16 +412,13 @@ void Terrain::updateMeshPool(const Vec3& cameraPosition) {
         if(activeCells.count(key) > 0) continue;
 
         const auto& cell = chunkCells[key];
-        setMesh(id, cell.position, cell.config);
+        Vec3 color = nextColor();
+        setMesh(id, cell.position, color, cell.config);
         poolCollider->removeCollider(id);
         poolCollider->addInstance(id, cell.position);
         activeCells.insert(key);
-        meshToCell[id] = key;
+        meshToCell[id] = { key, color };
     }
-
-    emissiveCells.clear();
-    for(const auto& [id, key] : meshToCell) emissiveCells.push_back({ id, chunkCells[key].position });
-    updateLights(cameraPosition);
 }
 
 /**
